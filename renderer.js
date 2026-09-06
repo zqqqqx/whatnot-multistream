@@ -293,19 +293,54 @@ function icon(name) {
   return el;
 }
 
+/* ---------- Dauerhafte Ablage ----------
+ *
+ * Massgeblich ist eine Datei im Datenordner der App (siehe main.js). Der
+ * localStorage wird nur noch als Zweitschrift mitgefuehrt und beim ersten Start
+ * einmal ausgelesen - er liegt in derselben Partition wie die Whatnot-Seiten
+ * und ist damit nicht verlaesslich genug fuer die Streamerliste.
+ */
+const persistence = (window.wnms && window.wnms.store) ? window.wnms.store : null;
+const storeData = persistence ? (persistence.readSync() || {}) : null;
+
 function load(key, fallback) {
+  // 1. die Datei
+  if (storeData && Object.prototype.hasOwnProperty.call(storeData, key)) {
+    return storeData[key];
+  }
+  // 2. einmalige Uebernahme aus der alten Ablage
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch (err) {
-    return fallback;
-  }
+    if (raw !== null) {
+      const value = JSON.parse(raw);
+      if (storeData) { storeData[key] = value; flushStore(); }
+      return value;
+    }
+  } catch (err) { /* unbrauchbar - dann eben der Ersatzwert */ }
+  return fallback;
+}
+
+let storeFailed = false;
+
+function flushStore() {
+  if (!persistence || !storeData) return;
+  persistence.write(storeData).then((ok) => {
+    if (ok || storeFailed) return;
+    // Einmal melden, nicht bei jedem Schreibversuch
+    storeFailed = true;
+    toast('Achtung: Einstellungen lassen sich gerade nicht sichern');
+  }).catch(() => {});
 }
 
 function store(key, value) {
+  if (storeData) {
+    storeData[key] = value;
+    flushStore();
+  }
+  // Zweitschrift, damit eine aeltere Fassung der App die Liste noch findet
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch (err) { /* ignorieren */ }
+  } catch (err) { /* die Datei ist das Original */ }
 }
 
 function makeUser(username, hidden) {
@@ -337,8 +372,12 @@ function migrateStreams() {
 
 let users = load(USERS_KEY, null);
 if (!Array.isArray(users)) {
+  // Hier lag der eigentliche Verlust: Kam beim Lesen nichts zurueck - aus
+  // welchem Grund auch immer -, wurde sofort eine leere Liste darueber
+  // geschrieben und war damit endgueltig weg. Geschrieben wird jetzt nur noch,
+  // wenn dabei auch wirklich etwas herauskommt.
   users = migrateStreams();
-  store(USERS_KEY, users);
+  if (users.length) store(USERS_KEY, users);
 }
 
 let settings = Object.assign({ cols: 'auto', me: '' }, load(SETTINGS_KEY, {}));

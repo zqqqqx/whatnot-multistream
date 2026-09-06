@@ -205,6 +205,27 @@ versteckte Streamer live sind).
 Cookie-Banner werden in jeder Kachel automatisch mit „Nur notwendige" geschlossen;
 dafür gibt es bewusst keinen Schalter mehr.
 
+### Wo die Liste liegt
+
+Streamerliste, Einstellungen und Versand-Merker stehen als eigene Datei
+`wnms-store.json` im Datenordner der App (`%APPDATA%\whatnot-multistream`).
+Früher lagen sie im `localStorage` des Fensters – und das benutzt dieselbe
+Ablage-Partition wie die Streams selbst, die Liste stand also mitten in mehreren
+hundert Megabyte Whatnot-Daten. Wird davon etwas verworfen, war sie weg.
+
+Geschrieben wird über eine Nebendatei, die anschließend in einem Zug an ihren
+Platz gezogen wird: Ein Absturz mitten im Schreiben kann so keine halbe Datei
+hinterlassen. Die vorige Fassung bleibt als `.bak` liegen; ist die Hauptdatei
+unbrauchbar, wird daraus gelesen **und sie sofort wiederhergestellt**. Zur
+Sicherung befördert wird immer nur eine Datei, die sich auch lesen lässt.
+
+Dazu gehört auch die **Reihenfolge der Kacheln**: Sie ist die Reihenfolge der
+Liste und wird beim Umsortieren per Rechtsklick-Ziehen mitgeschrieben, bleibt
+also über Neustarts erhalten.
+
+Die App läuft außerdem nur noch einmal gleichzeitig – ein zweiter Start holt das
+vorhandene Fenster nach vorn, statt sich mit ihm um dieselbe Datei zu streiten.
+
 Streamerliste und Einstellungen bleiben nach dem Schließen erhalten. Eine
 vorhandene alte Stream-Liste wird beim ersten Start übernommen: aus jeder
 Profil-Kachel wird ein Streamer, direkte Live-Links entfallen (sie lassen sich

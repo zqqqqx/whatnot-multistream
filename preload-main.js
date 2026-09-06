@@ -9,6 +9,16 @@ contextBridge.exposeInMainWorld('wnms', {
   openExternal: (url) => ipcRenderer.invoke('wnms-open-external', String(url || '')),
   copy: (text) => ipcRenderer.invoke('wnms-copy', String(text || '')),
 
+  // Dauerhafte Ablage als Datei im Datenordner - unabhaengig von der
+  // Ablage-Partition, in der die Whatnot-Seiten ihre Daten halten.
+  store: {
+    // synchron: der Renderer braucht seinen Bestand schon beim Aufbau
+    readSync: () => {
+      try { return ipcRenderer.sendSync('wnms-store-read') || {}; } catch (err) { return null; }
+    },
+    write: (data) => ipcRenderer.invoke('wnms-store-write', data)
+  },
+
   // Selbstaktualisierung: nachsehen, laden, einspielen - und der Zustand dazu
   update: {
     state: () => ipcRenderer.invoke('wnms-update-state'),
