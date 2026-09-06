@@ -33,15 +33,9 @@
       <span class="badge" id="hiddenCount">0</span>
     </button>
 
-    <select id="colsSelect" class="mini" title="Spalten im Raster">
-      <option value="auto">Auto</option>
-      <option value="1">1 Spalte</option>
-      <option value="2">2 Spalten</option>
-      <option value="3">3 Spalten</option>
-      <option value="4">4 Spalten</option>
-      <option value="5">5 Spalten</option>
-      <option value="6">6 Spalten</option>
-    </select>
+    <button id="layoutBtn" class="icon" title="Raster: Spalten und Ausrichtung">
+      <i class="fa-solid fa-table-cells-large"></i>
+    </button>
 
     <span class="sep"></span>
 
@@ -157,6 +151,15 @@
     </div>
   </main>
 
+  <!-- Raster einstellen: Spaltenzahl und Ausrichtung, beides mit Symbolen.
+       Denselben Block baut renderer.js ein zweites Mal in die Einstellungen. -->
+  <div id="layoutPop" class="pop layout-pop" hidden>
+    <div class="pop-head">
+      <span><i class="fa-solid fa-table-cells-large"></i> Raster</span>
+    </div>
+    <div id="layoutPopBody"></div>
+  </div>
+
   <!-- Versteckte Streamer, die gerade live sind -->
   <div id="hiddenPop" class="pop" hidden>
     <div class="pop-head">
@@ -270,15 +273,14 @@
               <small>Der zuletzt hörbare Stream bekommt beim Start wieder den Ton.</small></span>
           </label>
 
+          <h3>Raster</h3>
+          <p class="opt-hint">
+            Wie viele Kacheln nebeneinander stehen und wohin sie rücken, wenn die Reihe
+            nicht voll wird. Derselbe Schalter sitzt oben in der Leiste.
+          </p>
+          <div id="layoutOptBody"></div>
+
           <h3>Anzeige</h3>
-          <div class="opt-row">
-            <label for="optCols">Spalten im Raster</label>
-            <select id="optCols" class="field">
-              <option value="auto">Automatisch</option>
-              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-            </select>
-          </div>
           <div class="opt-row">
             <label for="optView">Kacheln zeigen</label>
             <select id="optView" class="field">
@@ -297,6 +299,26 @@
             <span><b>Preis inklusive Versand anzeigen</b>
               <small>Klein unter dem Gebot. Nur wenn Whatnot die Versandkosten wirklich nennt.</small></span>
           </label>
+
+          <h3>Bieten</h3>
+          <label class="opt">
+            <input id="optMaxBid" type="checkbox">
+            <span><b>Max-Gebot je Auktion</b>
+              <small>Legt neben dem Gebots-Knopf einen <b>Max</b>-Knopf ab. Ist die dort
+                     eingetragene Grenze überschritten, verschwindet der Gebots-Knopf für
+                     dieses Los. Geboten wird nie von selbst.</small></span>
+          </label>
+          <div class="opt-row">
+            <label for="optMaxPlus">Spielraum über der Grenze</label>
+            <div class="field-money">
+              <input id="optMaxPlus" type="number" min="0" max="500" step="1" class="field short">
+              <span>€</span>
+            </div>
+          </div>
+          <p class="opt-hint">
+            Bis hierhin darf über die eingetragene Grenze hinaus geboten werden – bei
+            <b>5 €</b> Spielraum und einer Grenze von 40 € bleibt der Knopf also bis 45 € stehen.
+          </p>
 
           <h3>Maßstab im Raster</h3>
           <p class="opt-hint">
@@ -453,7 +475,7 @@
   <!-- Konto gesperrt: liegt über allem und lässt sich nicht wegklicken -->
   <div id="lockedOverlay" class="locked" hidden>
     <div class="locked-card">
-      <i class="fa-solid fa-ban"></i>
+      <i class="fa-solid fa-user-lock"></i>
       <h2>Dieses Konto ist nicht zur Nutzung berechtigt</h2>
       <p id="lockedWho"></p>
       <p class="hint">Die Anwendung lässt sich mit diesem Whatnot-Konto nicht verwenden.</p>

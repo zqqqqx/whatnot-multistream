@@ -332,7 +332,10 @@ const els = {
   loadingWho: document.getElementById('loadingWho'),
   idleInfo: document.getElementById('idleInfo'),
   count: document.getElementById('count'),
-  cols: document.getElementById('colsSelect'),
+  layoutBtn: document.getElementById('layoutBtn'),
+  layoutPop: document.getElementById('layoutPop'),
+  layoutPopBody: document.getElementById('layoutPopBody'),
+  layoutOptBody: document.getElementById('layoutOptBody'),
   check: document.getElementById('checkBtn'),
   viewAll: document.getElementById('viewAllBtn'),
   muteAll: document.getElementById('muteAllBtn'),
@@ -379,7 +382,8 @@ const els = {
   settingsTabs: document.getElementById('settingsTabs'),
   optStartCheck: document.getElementById('optStartCheck'),
   optRestoreSound: document.getElementById('optRestoreSound'),
-  optCols: document.getElementById('optCols'),
+  optMaxBid: document.getElementById('optMaxBid'),
+  optMaxPlus: document.getElementById('optMaxPlus'),
   optView: document.getElementById('optView'),
   optShowLot: document.getElementById('optShowLot'),
   optShowTotal: document.getElementById('optShowTotal'),
@@ -538,6 +542,7 @@ if (!Array.isArray(users)) {
 
 let settings = Object.assign({
   cols: 'auto',
+  align: 'center',     // wohin die Kacheln ruecken, wenn die Reihe nicht voll wird
   me: '',
   view: 'full',        // Voreinstellung fuer neue Kacheln, vom Knopf oben gesetzt
   unmuted: null,       // welcher Streamer zuletzt Ton hatte
@@ -545,7 +550,9 @@ let settings = Object.assign({
   showLot: true,       // Los-Leiste am Kachelrand
   showTotal: true,     // Gesamtpreis inklusive Versand darunter
   startCheck: true,    // beim Start sofort nachsehen, wer live ist
-  restoreSound: true   // den zuletzt hoerbaren Stream wieder aufdrehen
+  restoreSound: true,  // den zuletzt hoerbaren Stream wieder aufdrehen
+  maxBid: true,        // Max-Knopf neben dem Gebots-Knopf in der Show
+  maxBidPlus: 0        // so weit darf ueber die eingetragene Grenze hinaus geboten werden
 }, load(SETTINGS_KEY, {}));
 
 function saveSettings() {
@@ -960,6 +967,13 @@ function createTile(user, state) {
   lotShip.appendChild(icon('fa-truck-fast'));
   const lotShipCount = document.createElement('b');
   lotShip.appendChild(lotShipCount);
+  // Grenze fuer dieses Los, sofern am Max-Knopf in der Show eine gesetzt wurde
+  const lotMax = document.createElement('span');
+  lotMax.className = 'lot-max';
+  lotMax.hidden = true;
+  lotMax.appendChild(icon('fa-hand'));
+  const lotMaxText = document.createElement('b');
+  lotMax.appendChild(lotMaxText);
   const lotTitle = document.createElement('span');
   lotTitle.className = 'lot-title';
   // Preisblock: oben das naechste Gebot, darunter kleiner die Summe mit Versand
@@ -973,7 +987,7 @@ function createTile(user, state) {
   lotPrice.append(lotBid, lotTotal);
   const lotTime = document.createElement('span');
   lotTime.className = 'lot-time';
-  lotBar.append(lotShip, lotTitle, lotPrice, lotTime);
+  lotBar.append(lotShip, lotMax, lotTitle, lotPrice, lotTime);
 
   body.append(webview, status);
   // Die Los-Leiste haengt an der Kachel, nicht ueber der Seite - so nimmt sie
@@ -1000,6 +1014,8 @@ function createTile(user, state) {
     lotBar,
     lotShip,
     lotShipCount,
+    lotMax,
+    lotMaxText,
     lotTitle,
     lotPrice,
     lotBid,
@@ -1028,6 +1044,7 @@ function createTile(user, state) {
     // Ein leeres Los ist eine gueltige Meldung ("gerade nichts unter dem Hammer")
     // und muss vor der Leerpruefung durch
     if (event.channel === 'wnms-lot') { onLot(tile, info || null); return; }
+    if (event.channel === 'wnms-live') { onLiveHint(tile, info || {}); return; }
     if (!info) return;
 
     const hostPoint = guestToHost(tile, info);
@@ -1038,6 +1055,9 @@ function createTile(user, state) {
 
   webview.addEventListener('dom-ready', () => {
     applyZoom(tile);
+    sendMaxBid(tile);
+    // Nach einem Neuladen faengt die Beobachtung von vorn an
+    tile.liveHintAt = 0;
     try { webview.insertCSS(HIDE_SCROLLBARS_CSS); } catch (err) {}
     try { webview.setAudioMuted(unmutedId !== user.id); } catch (err) {}
     status.hidden = true;
@@ -1247,6 +1267,45 @@ function formatMoney(value, currency) {
   return currency ? text + ' ' + currency : text;
 }
 
+/* ================= Ist die Show noch da? =================
+ *
+ * Die Kachel meldet einen Verdacht (Bild steht, Player weg, Adresse gewechselt -
+ * siehe preload-tile.js). Entschieden wird er hier nicht selbst: Nachgesehen
+ * wird auf der Profilseite, denn nur die weiss es sicher. Faellt der Verdacht
+ * aus, verschwindet die Kachel binnen Sekunden statt erst bei der naechsten
+ * regulaeren Runde nach bis zu zwei Minuten.
+ *
+ * Ein Fehlalarm kostet damit genau eine zusaetzliche Abfrage - und die kommt
+ * je Kachel hoechstens alle LIVE_RECHECK_MS.
+ */
+const LIVE_RECHECK_MS = 45000;
+
+function onLiveHint(tile, info) {
+  if (info.alive !== false) return;
+  const user = users.find((entry) => entry.id === tile.id);
+  if (!user) return;
+
+  const now = Date.now();
+  if (now - (tile.liveHintAt || 0) < LIVE_RECHECK_MS) return;
+  tile.liveHintAt = now;
+  checkUser(user);
+}
+
+// Was die Kachel ueber das Max-Gebot wissen muss - beim Aufbau und nach jeder
+// Aenderung in den Einstellungen.
+function sendMaxBid(tile) {
+  try {
+    tile.webview.send('wnms-maxbid', {
+      on: settings.maxBid !== false,
+      plus: Math.max(0, Number(settings.maxBidPlus) || 0)
+    });
+  } catch (err) { /* Kachel noch nicht bereit - dom-ready holt es nach */ }
+}
+
+function sendMaxBidAll() {
+  for (const tile of tiles.values()) sendMaxBid(tile);
+}
+
 /* Was das Los am Ende wirklich kostet.
  *
  * Gerechnet wird nur mit dem, was auf der Seite steht: dem naechsten Gebot und
@@ -1287,6 +1346,23 @@ function renderLot(tile) {
     tile.lotShipCount.textContent = ship.count > 1 ? '×' + ship.count : '';
     tile.lotShip.title = 'Versand läuft heute schon' + (ship.fee ? ' (' + ship.fee + ')' : '') +
       ' – weitere Lose bei diesem Verkäufer kosten keinen zweiten Versand.';
+  }
+
+  /* Eigene Grenze fuer dieses Los. Erreicht heisst: der Gebots-Knopf in der Show
+   * ist weg - das gehoert in die Kachel, sonst wundert man sich im Raster, warum
+   * dort nichts mehr zu klicken ist. */
+  const grenze = lot && typeof lot.maxLimit === 'number' ? lot.maxLimit : null;
+  tile.lotMax.hidden = grenze === null;
+  if (grenze !== null) {
+    const deckel = typeof lot.maxCeiling === 'number' ? lot.maxCeiling : grenze;
+    tile.lotMax.classList.toggle('aus', Boolean(lot.maxBlocked));
+    tile.lotMaxText.textContent = lot.maxBlocked
+      ? 'Grenze erreicht'
+      : formatMoney(grenze, lot.currency);
+    tile.lotMax.title = lot.maxBlocked
+      ? 'Über deiner Grenze von ' + formatMoney(deckel, lot.currency) + ' – der Gebots-Knopf ist ausgeblendet.'
+      : 'Höchstens ' + formatMoney(grenze, lot.currency) + ' für dieses Los'
+        + (deckel !== grenze ? ' (mit Spielraum bis ' + formatMoney(deckel, lot.currency) + ')' : '');
   }
 
   tile.lotTitle.textContent = lot ? lot.title : 'Versand läuft heute schon';
@@ -1381,6 +1457,133 @@ function lotBarHeight() {
   return settings.showLot === false ? 0 : LOT_BAR_H;
 }
 
+/* ================= Raster =================
+ *
+ * Beide Regler wirken auf dasselbe Bild:
+ *
+ *   Spalten      "auto" sucht die Zahl, bei der das Streambild am groessten wird;
+ *                1 bis 6 legen sie fest.
+ *   Ausrichtung  wohin die Kacheln ruecken, wenn die letzte Reihe nicht voll wird
+ *                oder die Spalten schmaler sind als das Fenster.
+ *
+ * Gerechnet wird in beiden Faellen gleich: Die Kachel ist immer im Handy-Format
+ * (die Los-Leiste kommt darunter hinzu), und es wird die Groesse gesucht, bei
+ * der alle Kacheln zugleich ins Fenster passen. Nur wenn die Kacheln dabei
+ * unbrauchbar klein wuerden, fuellen sie stattdessen die Spaltenbreite und die
+ * Buehne bekommt einen Rollbalken. Frueher waren das zwei getrennte Modi ("auto"
+ * gegen "feste Spalten") mit verschiedenen Regeln - das stammte noch aus der
+ * Zeit, als die Kacheln im Querformat lagen.
+ */
+const MIN_TILE_W = 190;  // darunter ist eine Kachel nicht mehr zu gebrauchen
+
+// Ausrichtung -> was CSS daraus macht. "spread" verteilt den Rest zwischen die
+// Spalten, bei einer einzigen Spalte gibt es nichts zu verteilen (siehe layout).
+const ALIGN_MODES = {
+  left:   { css: 'start',         icon: 'fa-align-left',    title: 'Links' },
+  center: { css: 'center',        icon: 'fa-align-center',  title: 'Mitte' },
+  right:  { css: 'end',           icon: 'fa-align-right',   title: 'Rechts' },
+  spread: { css: 'space-between', icon: 'fa-align-justify', title: 'Verteilt' }
+};
+
+function alignMode() {
+  return ALIGN_MODES[settings.align] ? settings.align : 'center';
+}
+
+// "auto", "1" ... "6" - alles andere gilt als "auto"
+function colsMode() {
+  const raw = String(settings.cols || 'auto');
+  if (raw === 'auto') return 'auto';
+  const num = Number(raw);
+  return num >= 1 && num <= 6 ? String(Math.floor(num)) : 'auto';
+}
+
+/* Baut die beiden Reihen "Spalten" und "Ausrichtung". Derselbe Block sitzt im
+ * Aufklapper der Leiste und in den Einstellungen; gebaut wird er hier einmal,
+ * damit beide nicht auseinanderlaufen. Was gerade gilt, faerbt renderLayout(). */
+const COL_CHOICES = [
+  { value: 'auto', label: 'Auto', icon: 'fa-wand-magic-sparkles', title: 'So viele Spalten, dass das Bild am größten wird' },
+  { value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' },
+  { value: '4', label: '4' }, { value: '5', label: '5' }, { value: '6', label: '6' }
+];
+
+const layoutParts = [];   // alle gebauten Bloecke - werden gemeinsam gefaerbt
+
+function buildLayoutControls(host) {
+  if (!host) return;
+  host.replaceChildren();
+
+  function set(labelText) {
+    const box = document.createElement('div');
+    box.className = 'layout-set';
+    const label = document.createElement('span');
+    label.textContent = labelText;
+    const row = document.createElement('div');
+    row.className = 'layout-row';
+    box.append(label, row);
+    host.appendChild(box);
+    return row;
+  }
+
+  const colRow = set('Spalten');
+  const colButtons = [];
+  for (const choice of COL_CHOICES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.title = choice.title || (choice.label + ' Spalten nebeneinander');
+    if (choice.icon) button.appendChild(icon(choice.icon));
+    button.appendChild(document.createTextNode(choice.label));
+    button.addEventListener('click', () => setCols(choice.value));
+    colRow.appendChild(button);
+    colButtons.push({ value: choice.value, el: button });
+  }
+
+  const alignRow = set('Ausrichtung');
+  const alignButtons = [];
+  for (const key of Object.keys(ALIGN_MODES)) {
+    const look = ALIGN_MODES[key];
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.title = look.title;
+    button.setAttribute('aria-label', look.title);
+    button.appendChild(icon(look.icon));
+    button.addEventListener('click', () => setAlign(key));
+    alignRow.appendChild(button);
+    alignButtons.push({ value: key, el: button });
+  }
+
+  layoutParts.push({ colButtons, alignButtons });
+  renderLayout();
+}
+
+function renderLayout() {
+  const cols = colsMode();
+  const align = alignMode();
+  for (const part of layoutParts) {
+    for (const entry of part.colButtons) entry.el.classList.toggle('on', entry.value === cols);
+    for (const entry of part.alignButtons) entry.el.classList.toggle('on', entry.value === align);
+  }
+  if (els.layoutBtn) {
+    els.layoutBtn.title = 'Raster: ' + (cols === 'auto' ? 'Spalten automatisch' : cols + ' Spalten')
+      + ' · ' + ALIGN_MODES[align].title;
+  }
+}
+
+function setCols(value) {
+  if (colsMode() === value) return;
+  settings.cols = value;
+  saveSettings();
+  renderLayout();
+  layout();
+}
+
+function setAlign(value) {
+  if (!ALIGN_MODES[value] || alignMode() === value) return;
+  settings.align = value;
+  saveSettings();
+  renderLayout();
+  layout();
+}
+
 // Sucht die Spaltenzahl, bei der das (hochkante) Streambild am groessten wird.
 function bestColumns(n, aspect) {
   const stageW = els.grid.clientWidth || 1200;
@@ -1460,46 +1663,55 @@ function setTileSize(width, height) {
 
 function layout() {
   const n = Math.max(tiles.size, 1);
-  const manual = !focusedId && settings.cols !== 'auto';
-  let cols;
+
   if (focusedId) {
-    cols = 1;
-  } else if (manual) {
-    cols = Number(settings.cols);
-  } else {
-    cols = bestColumns(n, PORTRAIT_ASPECT);
-  }
-  const rows = focusedId ? 1 : Math.ceil(n / cols);
-
-  els.grid.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
-  els.grid.classList.toggle('manual', manual);
-
-  // Kachelgröße in Pixeln vorgeben. Ohne feste Größe nähmen die zentrierten
-  // Kacheln die Eigenbreite des webviews (300 px) statt der Spaltenbreite an.
-  const stageW = els.grid.clientWidth || 1200;
-  const stageH = els.grid.clientHeight || 700;
-  const cellW = (stageW - (cols + 1) * TILE_GAP) / cols;
-
-  // Die Los-Leiste sitzt unter der Seite und bekommt ihre Hoehe zusaetzlich -
-  // so bleibt die Flaeche darueber genau im Handy-Format und das Video fuellt
-  // sie ohne schwarze Raender.
-  const bar = lotBarHeight();
-
-  if (manual) {
-    // Feste Spaltenzahl: Kachel füllt die Spalte, Höhe folgt dem Handy-Format.
-    // Passt nicht alles ins Fenster, wird gescrollt.
-    const tileH = Math.max(160, cellW / PORTRAIT_ASPECT) + bar;
-    els.grid.style.gridTemplateRows = '';
-    els.grid.style.gridAutoRows = tileH + 'px';
-    if (!focusedId) { setTileSize(cellW, tileH); setPreviewZoom(cellW); }
-  } else {
-    const cellH = (stageH - (rows + 1) * TILE_GAP) / rows;
-    const tileW = Math.min(cellW, (cellH - bar) * PORTRAIT_ASPECT);
+    // Grossansicht: eine Kachel, volle Buehne. --tile-w/h bleiben auf der
+    // Vorschaugroesse stehen, damit die abgelegten Kacheln ihre Masse behalten
+    // und ihr Layout nicht umbauen.
+    els.grid.style.gridTemplateColumns = 'minmax(0, 1fr)';
+    els.grid.style.gridTemplateRows = 'minmax(0, 1fr)';
     els.grid.style.gridAutoRows = '';
-    els.grid.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
-    // Im Fokus bleibt --tile-w/h auf der Vorschaugroesse stehen: die abgelegten
-    // Kacheln behalten damit ihre Masse und bauen ihr Layout nicht um.
-    if (!focusedId) { setTileSize(tileW, tileW / PORTRAIT_ASPECT + bar); setPreviewZoom(tileW); }
+    els.grid.style.justifyContent = 'stretch';
+    els.grid.style.alignContent = 'stretch';
+    els.grid.classList.remove('scroll');
+  } else {
+    const mode = colsMode();
+    const cols = mode === 'auto' ? bestColumns(n, PORTRAIT_ASPECT) : Number(mode);
+    const rows = Math.ceil(n / cols);
+
+    const stageW = els.grid.clientWidth || 1200;
+    const stageH = els.grid.clientHeight || 700;
+    // Die Los-Leiste sitzt unter der Seite und bekommt ihre Hoehe zusaetzlich -
+    // so bleibt die Flaeche darueber genau im Handy-Format und das Video fuellt
+    // sie ohne schwarze Raender.
+    const bar = lotBarHeight();
+    const cellW = (stageW - (cols + 1) * TILE_GAP) / cols;
+    const cellH = (stageH - (rows + 1) * TILE_GAP) / rows;
+
+    // Erst versuchen, alles zugleich ins Fenster zu bekommen ...
+    let tileW = Math.min(cellW, Math.max(0, cellH - bar) * PORTRAIT_ASPECT);
+    // ... wuerden die Kacheln dabei unbrauchbar klein, fuellen sie die Spalte
+    // und die Buehne bekommt einen Rollbalken.
+    const scroll = tileW < MIN_TILE_W;
+    if (scroll) tileW = Math.max(MIN_TILE_W, cellW);
+    const tileH = tileW / PORTRAIT_ASPECT + bar;
+
+    // Spalten in Kachelbreite statt in Bruchteilen: erst dadurch bleibt rechts
+    // und links ueberhaupt Platz uebrig, den die Ausrichtung verteilen kann.
+    els.grid.style.gridTemplateColumns = 'repeat(' + cols + ', ' + Math.floor(tileW) + 'px)';
+    els.grid.style.gridTemplateRows = 'repeat(' + rows + ', ' + Math.floor(tileH) + 'px)';
+    els.grid.style.gridAutoRows = Math.floor(tileH) + 'px';
+    // Bei einer einzigen Spalte gibt es zwischen den Spalten nichts zu
+    // verteilen - "verteilt" wuerde dort nach links kippen, also Mitte.
+    const align = alignMode();
+    els.grid.style.justifyContent = (align === 'spread' && cols < 2)
+      ? 'center'
+      : ALIGN_MODES[align].css;
+    els.grid.style.alignContent = scroll ? 'start' : 'center';
+    els.grid.classList.toggle('scroll', scroll);
+
+    setTileSize(tileW, tileH);
+    setPreviewZoom(tileW);
   }
   // Im Raster Handy-Format, im Fokus die volle Fensterfläche (Desktop-Ansicht)
   els.grid.classList.toggle('portrait', !focusedId);
@@ -2477,12 +2689,20 @@ function requestCheck() {
 els.checkNow.addEventListener('click', requestCheck);
 els.check.addEventListener('click', requestCheck);
 
-els.cols.addEventListener('change', () => {
-  settings.cols = els.cols.value;
-  els.optCols.value = settings.cols;   // derselbe Schalter steht auch in den Einstellungen
-  saveSettings();
-  layout();
-});
+els.layoutBtn.addEventListener('click', () => (els.layoutPop.hidden ? openLayoutPop() : closeLayoutPop()));
+
+function openLayoutPop() {
+  els.layoutPop.hidden = false;
+  const anchor = els.layoutBtn.getBoundingClientRect();
+  const pop = els.layoutPop.getBoundingClientRect();
+  const left = anchor.left + anchor.width / 2 - pop.width / 2;
+  els.layoutPop.style.top = (anchor.bottom + 8) + 'px';
+  els.layoutPop.style.left = Math.max(8, Math.min(left, window.innerWidth - pop.width - 8)) + 'px';
+}
+
+function closeLayoutPop() {
+  els.layoutPop.hidden = true;
+}
 
 let resizeTimer = null;
 window.addEventListener('resize', () => {
@@ -2532,6 +2752,7 @@ els.menu.addEventListener('click', (e) => {
 document.addEventListener('mousedown', (e) => {
   if (!els.menu.hidden && !els.menu.contains(e.target)) closeTileMenu();
   if (!els.hiddenPop.hidden && !els.hiddenPop.contains(e.target) && !els.hiddenBtn.contains(e.target)) closeHiddenPop();
+  if (!els.layoutPop.hidden && !els.layoutPop.contains(e.target) && !els.layoutBtn.contains(e.target)) closeLayoutPop();
 });
 
 // Loslassen und Ziehen außerhalb der Kachelseiten (z. B. auf der Kopfzeile)
@@ -2546,6 +2767,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!els.menu.hidden) closeTileMenu();
   else if (!els.hiddenPop.hidden) closeHiddenPop();
+  else if (!els.layoutPop.hidden) closeLayoutPop();
   else if (!els.settingsPanel.hidden) closeSettings();
   else if (!els.panel.hidden) closePanel();
   else if (!els.setup.hidden) closeSetup();
@@ -2940,10 +3162,13 @@ function showSettingsTab(tab) {
 function renderSettings() {
   els.optStartCheck.checked = settings.startCheck !== false;
   els.optRestoreSound.checked = settings.restoreSound !== false;
-  els.optCols.value = settings.cols;
   els.optView.value = VIEW_LOOK[settings.view] ? settings.view : 'full';
   els.optShowLot.checked = settings.showLot !== false;
   els.optShowTotal.checked = settings.showTotal !== false;
+  els.optMaxBid.checked = settings.maxBid !== false;
+  els.optMaxPlus.value = String(Math.max(0, Number(settings.maxBidPlus) || 0));
+  els.optMaxPlus.disabled = settings.maxBid === false;
+  renderLayout();
   renderTileBase();
   renderAccount();
   renderAbout();
@@ -2968,14 +3193,22 @@ els.optRestoreSound.addEventListener('change', () => {
   saveSettings();
 });
 
-els.optCols.addEventListener('change', () => {
-  settings.cols = els.optCols.value;
-  els.cols.value = settings.cols;
+els.optView.addEventListener('change', () => applyViewAll(els.optView.value));
+
+els.optMaxBid.addEventListener('change', () => {
+  settings.maxBid = els.optMaxBid.checked;
+  els.optMaxPlus.disabled = !els.optMaxBid.checked;
   saveSettings();
-  layout();
+  sendMaxBidAll();
 });
 
-els.optView.addEventListener('change', () => applyViewAll(els.optView.value));
+els.optMaxPlus.addEventListener('change', () => {
+  const value = Math.max(0, Math.min(500, Number(els.optMaxPlus.value) || 0));
+  els.optMaxPlus.value = String(value);
+  settings.maxBidPlus = value;
+  saveSettings();
+  sendMaxBidAll();
+});
 
 els.optShowLot.addEventListener('change', () => {
   settings.showLot = els.optShowLot.checked;
@@ -3176,7 +3409,8 @@ if (window.wnms && window.wnms.info) {
   }).catch(() => {});
 }
 
-els.cols.value = settings.cols;
+buildLayoutControls(els.layoutPopBody);
+buildLayoutControls(els.layoutOptBody);
 renderViewAll();
 renderTileBase();
 els.meInput.value = settings.me || '';

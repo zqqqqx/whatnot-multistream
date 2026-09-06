@@ -138,6 +138,23 @@ Kachel auf den neuen Link.
 Die Prüfung läuft in einem unsichtbaren Whatnot-Fenster im Hintergrund – dadurch
 gelten Anmeldung und Herkunft wie bei einem normalen Besuch der Seite.
 
+### Wenn eine Show endet
+
+Auf die reguläre Runde allein zu warten hieße, dass eine beendete Show noch bis
+zu zwei Minuten mit einem stehenden Bild im Raster hängt. Die Kachel selbst sieht
+es früher, denn sie hat drei Anzeichen:
+
+1. die Adresse ist keine Show-Adresse mehr (Whatnot leitet weiter),
+2. der Player ist gar nicht mehr da,
+3. das Bild steht – die Laufzeit des Videos rührt sich seit 15 Sekunden nicht.
+
+Entschieden wird in der Kachel aber nichts: Sie meldet nur einen **Verdacht**, und
+die App holt daraufhin die Profilseite – die einzige Stelle, die es sicher weiß.
+Ein Fehlalarm (kurzes Ruckeln, angehaltenes Video) kostet damit eine zusätzliche
+Abfrage und sonst nichts; je Kachel höchstens eine alle 45 Sekunden. Bleibt das
+Bild stehen, wird der Verdacht in Abständen erneuert, statt es bei einem Anlauf
+zu belassen. Gemessen vom Stillstand bis zur Nachfrage: **rund 20 Sekunden**.
+
 ## Was gerade unter dem Hammer ist
 
 Am unteren Rand jeder Kachel läuft eine schmale Zeile mit dem aktuellen Los:
@@ -187,6 +204,44 @@ Whatnot-Usernamen – **eintippen musst du ihn nicht**: Er wird beim Anmelden au
 der Seite gelesen und bleibt gespeichert (siehe *Konto*). Unter *Shows* steht er
 dann schon da und lässt sich bei Bedarf überschreiben. Ohne Anmeldung lässt sich
 der Merker im Rechtsklick-Menü der Kachel von Hand setzen und wieder entfernen.
+
+## Max-Gebot
+
+Neben Whatnots gelbem Gebots-Knopf steht ein zweiter: **Max**. Dort trägst du ein,
+bis wohin du bei *diesem* Los mitgehen willst. Ist das nächste Gebot darüber,
+verschwindet der gelbe Knopf und an seiner Stelle steht, warum – versehentlich
+über die eigene Grenze klicken geht dann nicht mehr. Mit dem nächsten Los fängt
+alles wieder von vorn an.
+
+**Geboten wird nie von selbst.** Die App liest den Gebots-Knopf und blendet ihn
+aus; betätigt wird er unter keinen Umständen. Ein Max-Gebot im Sinne von
+„automatisch bis X mitbieten" ist das also ausdrücklich *nicht*, sondern eine
+Bremse gegen den eigenen Klickfinger.
+
+Der Knopf erscheint nur, solange eine Auktion läuft – er reiht sich in dieselbe
+Zeile wie „Definiert" und der Gebots-Knopf ein, der dafür schmaler wird. In der
+Los-Leiste am Kachelrand steht die gesetzte Grenze mit, sodass man sie auch im
+Raster sieht.
+
+Unter *Einstellungen → Bieten*:
+
+| Schalter | Wirkung |
+| --- | --- |
+| **Max-Gebot je Auktion** | Schaltet den Knopf ab; ein ausgeblendeter Gebots-Knopf kommt sofort zurück. |
+| **Spielraum über der Grenze** | So weit darf über die eingetragene Grenze hinaus geboten werden. Bei 5 € Spielraum und einer Grenze von 40 € bleibt der Knopf bis einschließlich 45 € stehen und verschwindet ab 46 €. |
+
+## Whatnots eigene Kopfzeile
+
+Über dem Videobild liegt bei Whatnot eine Kopfzeile mit Profilbild, Name des
+Streamers, Bewertung, „Folgen" und Zuschauerzahl. Genau das steht in der
+Kachelleiste der App schon – zweimal dasselbe kostet nur Bild, deshalb ist sie
+ausgeblendet.
+
+Ausgeblendet wird über `visibility`, nicht über `display`: Die Kopfzeile ist eine
+eigene Zeile im Raster des Players, und die fiele bei `display: none` in sich
+zusammen – alles darunter, bis hin zum Gebots-Knopf, rückte um ihre Höhe nach
+oben. Getroffen wird über den beständigen Teil des Klassennamens, denn Whatnot
+hängt seinen CSS-Bausteinen bei jedem Bau eine neue Endung an.
 
 ## Konto: Anmelden und Namenserkennung
 
@@ -292,12 +347,12 @@ Das Schieberegler-Symbol oben öffnet drei Reiter:
 
 | Reiter | Inhalt |
 | --- | --- |
-| **Allgemein** | Verhalten beim Start (sofort prüfen, Ton der letzten Sitzung wieder aufnehmen), Anzeige (Spaltenzahl, Ansicht der Kacheln, Los-Leiste, Preis inklusive Versand), Maßstab im Raster, Assistent erneut starten. |
+| **Allgemein** | Verhalten beim Start (sofort prüfen, Ton der letzten Sitzung wieder aufnehmen), Raster (Spalten und Ausrichtung), Anzeige (Ansicht der Kacheln, Los-Leiste, Preis inklusive Versand), Bieten (Max-Gebot, Spielraum), Maßstab im Raster, Assistent erneut starten. |
 | **Konto** | Erkannter Username, Anmeldestatus, anmelden bzw. Konto wechseln. |
 | **Updates & Über** | Installierte Version, *Nach Updates suchen* mit verständlicher Antwort, Herunterladen bzw. Neustarten, Link zum Projekt. |
 
-Spaltenzahl und Kachelansicht stehen zugleich in der Kopfleiste – beide Wege
-zeigen immer denselben Stand.
+Raster und Kachelansicht stehen zugleich in der Kopfleiste – beide Wege zeigen
+immer denselben Stand, es ist derselbe Block an zwei Stellen.
 
 ## Bedienung
 
@@ -314,7 +369,26 @@ Links der Zähler, dazwischen die Symbole:
 | --- | --- |
 | **Shows** | Streamer hinzufügen, verstecken, entfernen – und im zweiten Reiter entdecken, was gerade auf der Startseite läuft (siehe oben). |
 | **Augen-Symbol mit Zahl** | Erscheint, sobald es versteckte Streamer gibt; die Zahl sagt, wie viele davon gerade live sind. Ein Klick zeigt deren Vorschaubilder – ein Klick auf eine Karte holt den Streamer zurück ins Raster. |
-| **Spalten** | Rasteraufteilung. „Auto" wählt die Spaltenzahl so, dass das Streambild möglichst groß wird; bei fester Spaltenzahl füllen die Kacheln die Spaltenbreite und das Raster scrollt, wenn es nicht ins Fenster passt. |
+| **Raster** (Kacheln-Symbol) | Klappt zwei Reihen auf: **Spalten** (Auto oder 1–6) und **Ausrichtung** (links, Mitte, rechts, verteilt). Beides wirkt auf dasselbe Bild. |
+
+### Wie das Raster rechnet
+
+Beide Regler wirken auf dasselbe Bild. Gerechnet wird in jedem Fall gleich: Die
+Kachel ist im Handy-Format (die Los-Leiste kommt darunter *hinzu*), und gesucht
+wird die Größe, bei der alle Kacheln zugleich ins Fenster passen. Nur wenn sie
+dabei unbrauchbar klein würden – unter 190 Pixel Breite –, füllen sie stattdessen
+die Spaltenbreite und die Bühne bekommt einen Rollbalken. Früher waren das zwei
+getrennte Modi mit verschiedenen Regeln; das stammte noch aus der Zeit, als die
+Kacheln im Querformat lagen.
+
+**Spalten** – „Auto" sucht die Zahl, bei der das Streambild am größten wird;
+1 bis 6 legen sie fest.
+
+**Ausrichtung** – wohin die Kacheln rücken, wenn die Reihe nicht voll wird oder
+die Spalten schmaler sind als das Fenster: **links**, **Mitte**, **rechts** oder
+**verteilt** (der übrige Platz kommt gleichmäßig zwischen die Spalten). Bei einer
+einzigen Spalte gibt es zwischen den Spalten nichts zu verteilen – dann steht sie
+in der Mitte.
 
 Egal wie viele Streams laufen und wie groß das Fenster ist: jede Kachel zeigt die
 Seite mit immer derselben logischen Breite, die Kachelgröße bestimmt nur den
@@ -386,11 +460,11 @@ Darin steht alles, was du einstellst, und es steht beim nächsten Start wieder d
 | Streamerliste, versteckt-Markierung | je Streamer |
 | **Reihenfolge der Kacheln** | die Reihenfolge der Liste – beim Umsortieren per Rechtsklick-Ziehen mitgeschrieben |
 | **Ansicht je Kachel** (ganze Seite / ohne Chat / nur Video) | je Streamer, gilt auch nach einem Neuaufbau der Kachel |
-| Ansicht für alle, Spaltenzahl, eigener Username | allgemeine Einstellungen |
+| Ansicht für alle, Spalten und Ausrichtung, eigener Username | allgemeine Einstellungen |
 | **Erkanntes Konto und Sperrvermerk** | schreibt der Hauptprozess, nicht das Fenster |
 | **Zuletzt geholte Sperrliste** | damit eine Sperre auch ohne Netz gilt |
 | **Fortschritt der Einrichtung** | Schritt und ob sie abgeschlossen ist |
-| **Alle Schalter der Einstellungen** | Startverhalten, Los-Leiste, Preis inklusive Versand, Maßstab im Raster |
+| **Alle Schalter der Einstellungen** | Startverhalten, Los-Leiste, Preis inklusive Versand, Max-Gebot und Spielraum, Maßstab im Raster |
 | **Welcher Stream Ton hat** | wird wieder aufgenommen, sobald die Kachel da ist |
 | **Fenstergröße, -lage und Vollbild** | wird beim Verschieben gemerkt |
 | Versand-Merker | je Streamer, gilt für den laufenden Tag |
