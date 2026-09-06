@@ -271,6 +271,8 @@ const els = {
   userList: document.getElementById('userList'),
   checkInfo: document.getElementById('checkInfo'),
   checkNow: document.getElementById('checkNowBtn'),
+  updateBtn: document.getElementById('updateBtn'),
+  updateLabel: document.getElementById('updateLabel'),
   hiddenBtn: document.getElementById('hiddenBtn'),
   hiddenCount: document.getElementById('hiddenCount'),
   hiddenPop: document.getElementById('hiddenPop'),
@@ -2060,6 +2062,62 @@ document.addEventListener('keydown', (e) => {
   else if (!els.panel.hidden) closePanel();
   else if (focusedId) setFocus(null);
 });
+
+/* ================= Selbstaktualisierung =================
+ *
+ * Der Hauptprozess sieht bei GitHub nach und meldet hierher, was Sache ist.
+ * Sichtbar wird davon nur etwas, wenn es auch etwas zu tun gibt: dann steht in
+ * der Kopfleiste ein Knopf, der durch die drei Schritte fuehrt - laden,
+ * Fortschritt, neu starten. Geladen wird nie von allein.
+ */
+let updateInfo = { state: 'idle' };
+
+function renderUpdate() {
+  const chip = els.updateBtn;
+  const state = updateInfo.state;
+  const show = state === 'available' || state === 'downloading' || state === 'ready';
+
+  chip.hidden = !show;
+  chip.classList.toggle('busy', state === 'downloading');
+  chip.classList.toggle('ready', state === 'ready');
+  if (!show) return;
+
+  if (state === 'available') {
+    chip.replaceChildren(icon('fa-arrow-rotate-up'), text('Version ' + updateInfo.version + ' laden'));
+    chip.title = 'Neue Fassung verfügbar – herunterladen';
+    chip.style.removeProperty('--done');
+  } else if (state === 'downloading') {
+    const percent = Math.max(0, Math.min(100, updateInfo.percent || 0));
+    chip.replaceChildren(icon('fa-arrow-down'), text('lädt … ' + percent + ' %'));
+    chip.title = 'Wird heruntergeladen';
+    chip.style.setProperty('--done', percent + '%');
+  } else {
+    chip.replaceChildren(icon('fa-circle-check'), text('Neu starten für ' + updateInfo.version));
+    chip.title = 'Fertig geladen – die App startet neu und spielt die Aktualisierung ein';
+    chip.style.removeProperty('--done');
+  }
+}
+
+function text(value) {
+  return document.createTextNode(value);
+}
+
+function onUpdateState(state) {
+  updateInfo = state || { state: 'idle' };
+  renderUpdate();
+  if (updateInfo.state === 'available') toast('Version ' + updateInfo.version + ' ist da – oben laden');
+  if (updateInfo.state === 'error' && updateInfo.loud) toast('Aktualisierung: ' + updateInfo.message);
+}
+
+if (window.wnms && window.wnms.update) {
+  window.wnms.update.onChange(onUpdateState);
+  window.wnms.update.state().then(onUpdateState).catch(() => {});
+
+  els.updateBtn.addEventListener('click', () => {
+    if (updateInfo.state === 'available') window.wnms.update.download();
+    else if (updateInfo.state === 'ready') window.wnms.update.install();
+  });
+}
 
 /* ================= Start ================= */
 

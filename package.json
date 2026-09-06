@@ -1,6 +1,6 @@
 {
   "name": "whatnot-multistream",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Bis zu 20 Whatnot-Streams gleichzeitig in einem Fenster",
   "main": "main.js",
   "scripts": {
@@ -17,7 +17,8 @@
     "sharp": "^0.35.4"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-free": "^7.3.1"
+    "@fortawesome/fontawesome-free": "^7.3.1",
+    "electron-updater": "^6.8.9"
   },
   "build": {
     "appId": "de.local.whatnot-multistream",
@@ -63,6 +64,13 @@
     },
     "extraMetadata": {
       "name": "whatnot-multistream"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "zqqqqx",
+        "repo": "whatnot-multistream"
+      }
+    ]
   }
 }

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, clipboard, ipcMain, session, shell } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
 
 // Streams sollen ohne Klick starten
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -58,6 +59,76 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'index.html'));
 }
 
+/* ================= Selbstaktualisierung =================
+ *
+ * Die App schaut bei GitHub nach, ob es eine neuere Fassung gibt. Geladen wird
+ * nichts von allein: Erst meldet sie, dass etwas da ist, und erst auf Klick
+ * wird heruntergeladen und installiert. Bezugsquelle ist der Release-Bereich
+ * des eigenen Projekts (siehe "publish" in der package.json); dort liegen der
+ * Installer, die latest.yml mit Version und Pruefsumme und die blockmap, mit
+ * der nur die geaenderten Teile geladen werden.
+ */
+const UPDATE_INTERVAL = 3 * 60 * 60 * 1000; // alle drei Stunden nachsehen
+
+let updateState = { state: 'idle' };
+
+function sendUpdate(state) {
+  updateState = state;
+  if (win && !win.isDestroyed()) {
+    try { win.webContents.send('wnms-update', state); } catch (err) { /* Fenster geht gerade zu */ }
+  }
+}
+
+function setupUpdater() {
+  // Im Quelltextbetrieb gibt es nichts zu aktualisieren - autoUpdater wuerde
+  // dort nur ueber eine fehlende dev-app-update.yml stolpern.
+  if (!app.isPackaged) return;
+
+  autoUpdater.autoDownload = false;          // der Nutzer entscheidet
+  autoUpdater.autoInstallOnAppQuit = true;   // Geladenes beim Beenden einspielen
+  autoUpdater.logger = null;
+
+  autoUpdater.on('update-available', (info) => {
+    sendUpdate({ state: 'available', version: info.version, notes: String(info.releaseNotes || '').slice(0, 400) });
+  });
+  autoUpdater.on('update-not-available', () => {
+    sendUpdate({ state: 'current', version: app.getVersion() });
+  });
+  autoUpdater.on('download-progress', (p) => {
+    sendUpdate({ state: 'downloading', percent: Math.round(p.percent || 0) });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    sendUpdate({ state: 'ready', version: info.version });
+  });
+  autoUpdater.on('error', (err) => {
+    sendUpdate({ state: 'error', message: String((err && err.message) || err).slice(0, 200) });
+  });
+
+  const look = () => { autoUpdater.checkForUpdates().catch(() => { /* der Fehlerkanal meldet es */ }); };
+  setTimeout(look, 8000);                  // nicht gleich im Startgedraenge
+  setInterval(look, UPDATE_INTERVAL);
+}
+
+ipcMain.handle('wnms-update-state', () => updateState);
+
+ipcMain.handle('wnms-update-check', () => {
+  if (!app.isPackaged) { sendUpdate({ state: 'dev' }); return; }
+  sendUpdate({ state: 'checking' });
+  autoUpdater.checkForUpdates().catch(() => {});
+});
+
+ipcMain.handle('wnms-update-download', () => {
+  if (!app.isPackaged) return;
+  sendUpdate({ state: 'downloading', percent: 0 });
+  autoUpdater.downloadUpdate().catch(() => {});
+});
+
+ipcMain.handle('wnms-update-install', () => {
+  if (!app.isPackaged) return;
+  // false = Installer sichtbar (der ist nicht signiert, da soll man sehen was laeuft)
+  autoUpdater.quitAndInstall(false, true);
+});
+
 // Ein Live-Link aus einer Kachel im echten Browser oeffnen. Nur whatnot.com,
 // damit ueber diesen Weg nichts anderes gestartet werden kann.
 // Zwischenablage: nur Text, und nur was der Renderer selbst zusammengestellt hat
@@ -76,6 +147,7 @@ app.whenReady().then(() => {
   prepareSession(session.fromPartition(PARTITION));
   prepareSession(session.defaultSession);
   createWindow();
+  setupUpdater();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

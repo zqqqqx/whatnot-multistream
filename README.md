@@ -17,6 +17,23 @@ im Startmenü an. Deinstalliert wird über *Apps & Features*.
 Da die Datei nicht signiert ist, meldet sich beim ersten Start der
 SmartScreen-Filter von Windows: *Weitere Informationen* → *Trotzdem ausführen*.
 
+## Aktualisierungen
+
+Die App sieht bei GitHub nach, ob eine neuere Fassung vorliegt – acht Sekunden
+nach dem Start und danach alle drei Stunden. Geladen wird **nichts von allein**:
+Gibt es etwas Neues, erscheint oben in der Kopfleiste ein gelber Knopf
+*„Version x.y.z laden"*. Ein Klick lädt herunter (der Knopf füllt sich als
+Fortschrittsbalken), ein zweiter startet die App neu und spielt die Fassung ein.
+Wer stattdessen einfach schließt, bekommt sie beim nächsten Beenden eingespielt.
+
+Steht nichts an, ist von alldem nichts zu sehen.
+
+Bezugsquelle sind die [Releases](https://github.com/zqqqqx/whatnot-multistream/releases)
+dieses Projekts. Dort liegen je Fassung drei Dateien: der Installer, eine
+`latest.yml` mit Version und Prüfsumme und eine `.blockmap`, dank der nur die
+geänderten Teile geladen werden statt jedes Mal 112 MB. Weil der Installer nicht
+signiert ist, meldet sich beim Einspielen wieder SmartScreen.
+
 ## Aus dem Quelltext starten
 
 Doppelklick auf **`Whatnot Multistream starten.bat`** – oder im Ordner:
@@ -35,7 +52,10 @@ npm run dist
 ```
 
 Das erzeugt zuerst aus `build/icon.svg` die Symbole (`npm run icon`) und packt
-dann mit electron-builder den NSIS-Installer nach `dist/`. Das App-Symbol ist
+dann mit electron-builder den NSIS-Installer nach `dist/` – zusammen mit
+`latest.yml` und `.blockmap`. Für eine neue Fassung: Version in der
+`package.json` erhöhen, bauen und **alle drei Dateien** an ein GitHub-Release
+mit dem Tag `v<version>` hängen. Genau danach sucht die Selbstaktualisierung. Das App-Symbol ist
 dasselbe gelbe Abzeichen mit dem **W**, das oben links in der App steht.
 
 ## Warum eine Desktop-App und keine Webseite?

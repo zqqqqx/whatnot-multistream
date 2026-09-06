@@ -158,6 +158,37 @@ select.mini option { background: var(--panel); color: var(--text); }
 input[type="text"]:focus,
 select:focus { outline: 1px solid var(--accent); }
 
+/* Update-Hinweis in der Kopfleiste. Steht nur da, wenn wirklich etwas
+   ansteht - im Normalfall sieht man von der Selbstaktualisierung nichts. */
+.update-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 212, 0, .45);
+  border-radius: 999px;
+  background: rgba(255, 212, 0, .12);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.update-chip:hover { background: rgba(255, 212, 0, .2); }
+.update-chip i { font-size: 11px; }
+
+/* Waehrend des Ladens fuellt sich der Knopf von links */
+.update-chip.busy {
+  background:
+    linear-gradient(to right, rgba(255, 212, 0, .34) var(--done, 0%), rgba(255, 212, 0, .1) var(--done, 0%));
+  cursor: default;
+}
+.update-chip.ready {
+  border-color: #74e08a;
+  background: rgba(116, 224, 138, .16);
+  color: #74e08a;
+}
+
 /* ---------- Stage / Grid ---------- */
 
 #stage {
