@@ -251,6 +251,7 @@ const els = {
   count: document.getElementById('count'),
   cols: document.getElementById('colsSelect'),
   check: document.getElementById('checkBtn'),
+  viewAll: document.getElementById('viewAllBtn'),
   muteAll: document.getElementById('muteAllBtn'),
   reloadAll: document.getElementById('reloadAllBtn'),
   login: document.getElementById('loginBtn'),
@@ -380,7 +381,18 @@ if (!Array.isArray(users)) {
   if (users.length) store(USERS_KEY, users);
 }
 
-let settings = Object.assign({ cols: 'auto', me: '' }, load(SETTINGS_KEY, {}));
+let settings = Object.assign({
+  cols: 'auto',
+  me: '',
+  view: 'full',      // Voreinstellung fuer neue Kacheln, vom Knopf oben gesetzt
+  unmuted: null,     // welcher Streamer zuletzt Ton hatte
+  lensSize: 0,       // Groesse des Lupenglases
+  lensMag: 0         // Vergroesserung der Lupe
+}, load(SETTINGS_KEY, {}));
+
+function saveSettings() {
+  store(SETTINGS_KEY, settings);
+}
 
 /* ================= Versand-Buendelung =================
  *
@@ -433,7 +445,7 @@ function clearShipping(userId) {
 const states = new Map(); // userId -> Live-Zustand
 const tiles = new Map();  // userId -> Kachel
 let focusedId = null;
-let unmutedId = null;
+let unmutedId = settings.unmuted || null; // zuletzt gewaehlter Ton
 let unmutedBeforeFocus = null; // Ton, der vor dem Vergroessern lief
 let lens = null;
 
@@ -788,7 +800,7 @@ function createTile(user, state) {
     shrinkBtn,
     id: user.id,
     liveUrl: state.liveUrl,
-    view: 'full',   // 'full' | 'nochat' | 'video'
+    view: VIEW_LOOK[user.view] ? user.view : (settings.view || 'full'),
     cleanKey: null,
     lotBar,
     lotShip,
@@ -925,11 +937,19 @@ function nextView(view) {
   return VIEW_ORDER[(at + 1) % VIEW_ORDER.length];
 }
 
-async function applyView(tile, mode, force) {
+async function applyView(tile, mode, force, quiet) {
   if (!VIEW_LOOK[mode]) mode = 'full';
   if (tile.view === mode && !force) return;
   tile.view = mode;
   tile.el.classList.toggle('clean', mode === 'video');
+
+  // Die Wahl gehoert zum Streamer, nicht zur Kachel - so steht sie beim
+  // naechsten Start und nach jedem Neuaufbau der Kachel wieder da.
+  const user = users.find((entry) => entry.id === tile.id);
+  if (user && user.view !== mode) {
+    user.view = mode;
+    if (!quiet) store(USERS_KEY, users);
+  }
 
   if (tile.viewBtn) {
     const look = VIEW_LOOK[mode];
@@ -949,6 +969,31 @@ async function applyView(tile, mode, force) {
       tile.cleanKey = null;
     }
   } catch (err) { /* Seite gerade nicht bereit */ }
+}
+
+// Der Knopf oben schaltet alle Kacheln gemeinsam - und legt zugleich fest,
+// womit neu auftauchende Kacheln starten.
+function applyViewAll(mode) {
+  if (!VIEW_LOOK[mode]) mode = 'full';
+  settings.view = mode;
+
+  for (const user of users) user.view = mode;
+  store(USERS_KEY, users);
+  saveSettings();
+
+  for (const tile of tiles.values()) applyView(tile, mode, true, true);
+  renderViewAll();
+
+  const wording = { full: 'Alle Kacheln: ganze Seite', nochat: 'Alle Kacheln: ohne Chat', video: 'Alle Kacheln: nur Video' };
+  toast(wording[mode]);
+}
+
+function renderViewAll() {
+  const mode = VIEW_LOOK[settings.view] ? settings.view : 'full';
+  const look = VIEW_LOOK[mode];
+  els.viewAll.replaceChildren(icon(look.icon));
+  els.viewAll.classList.toggle('on', mode !== 'full');
+  els.viewAll.title = 'Bei allen: ' + { full: 'Chat ausblenden', nochat: 'nur Video zeigen', video: 'ganze Seite zeigen' }[mode];
 }
 
 /* ================= Los-Leiste =================
@@ -1029,8 +1074,9 @@ function renderLot(tile) {
  * vergroessert eingesetzt.
  */
 
-let lensSize = LENS_START_SIZE;
-let lensMag = LENS_START_MAG;
+// Die zuletzt eingestellte Lupe wieder aufnehmen
+let lensSize = settings.lensSize || LENS_START_SIZE;
+let lensMag = settings.lensMag || LENS_START_MAG;
 const lastPointer = new Map(); // tileId -> zuletzt gemeldete Zeigerposition
 let ctrlDown = false;
 
@@ -1101,6 +1147,9 @@ function lensWheel(info) {
     // Rad: das Glas selbst groesser oder kleiner machen
     lensSize = Math.min(LENS_MAX_SIZE, Math.max(LENS_MIN_SIZE, lensSize + step * LENS_SIZE_STEP));
   }
+  settings.lensSize = lensSize;
+  settings.lensMag = lensMag;
+  saveSettings();
   drawLens();
 }
 
@@ -1182,6 +1231,10 @@ function syncTiles() {
     updateTileHead(tile, user, state);
     renderLot(tile); // Versand-Merker steht ggf. schon, bevor ein Los gemeldet wird
   }
+
+  // Der zuletzt gewaehlte Ton wird wieder aufgenommen, sobald seine Kachel da ist
+  const soundTile = unmutedId ? tiles.get(unmutedId) : null;
+  if (soundTile && !soundTile.el.classList.contains('audio-on')) setUnmuted(unmutedId);
 
   const liveCount = users.filter((user) => stateOf(user).live).length;
   els.count.textContent = liveCount + ' live · ' + users.length + ' User';
@@ -1629,6 +1682,10 @@ async function setFocus(id) {
 
 function setUnmuted(id) {
   unmutedId = id;
+  if (settings.unmuted !== (id || null)) {
+    settings.unmuted = id || null;
+    saveSettings();
+  }
   for (const [tileId, tile] of tiles) {
     const on = tileId === id;
     try { tile.webview.setAudioMuted(!on); } catch (err) {}
@@ -2161,6 +2218,9 @@ if (window.wnms && window.wnms.update) {
 /* ================= Start ================= */
 
 els.cols.value = settings.cols;
+renderViewAll();
+
+els.viewAll.addEventListener('click', () => applyViewAll(nextView(settings.view)));
 els.meInput.value = settings.me || '';
 
 // Eigener Username: nur fuer die Versand-Buendelung noetig. Gespeichert wird auf

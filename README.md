@@ -175,6 +175,7 @@ Seite mit immer derselben logischen Breite (400 px), die Kachelgröße bestimmt 
 den Maßstab. Das Verhältnis von Chat zu Videobild bleibt dadurch überall gleich –
 bei drei großen Kacheln wird der Chat einfach größer, statt dass Whatnot auf ein
 breiteres Layout mit schmalem Chat umschaltet.
+| **Sprechblase** | Schaltet **alle** Kacheln gemeinsam im Kreis: ganze Seite → ohne Chat → nur Video. Legt zugleich fest, womit neu auftauchende Kacheln starten. |
 | **Sendeturm** | Prüfung sofort starten, statt auf das 2-Minuten-Intervall zu warten. |
 | **Lautsprecher / Kreispfeile** | Alle stummschalten bzw. alle Kacheln neu laden. |
 | **Anmelde-Symbol** | Öffnet Whatnot in einem Extra-Fenster. Einmal anmelden – die Anmeldung gilt für alle Kacheln und bleibt gespeichert. |
@@ -219,9 +220,22 @@ hinterlassen. Die vorige Fassung bleibt als `.bak` liegen; ist die Hauptdatei
 unbrauchbar, wird daraus gelesen **und sie sofort wiederhergestellt**. Zur
 Sicherung befördert wird immer nur eine Datei, die sich auch lesen lässt.
 
-Dazu gehört auch die **Reihenfolge der Kacheln**: Sie ist die Reihenfolge der
-Liste und wird beim Umsortieren per Rechtsklick-Ziehen mitgeschrieben, bleibt
-also über Neustarts erhalten.
+Darin steht alles, was du einstellst, und es steht beim nächsten Start wieder da:
+
+| Was | Wo es hängt |
+| --- | --- |
+| Streamerliste, versteckt-Markierung | je Streamer |
+| **Reihenfolge der Kacheln** | die Reihenfolge der Liste – beim Umsortieren per Rechtsklick-Ziehen mitgeschrieben |
+| **Ansicht je Kachel** (ganze Seite / ohne Chat / nur Video) | je Streamer, gilt auch nach einem Neuaufbau der Kachel |
+| Ansicht für alle, Spaltenzahl, eigener Username | allgemeine Einstellungen |
+| **Welcher Stream Ton hat** | wird wieder aufgenommen, sobald die Kachel da ist |
+| **Größe und Vergrößerung der Lupe** | so, wie du sie zuletzt gedreht hast |
+| **Fenstergröße, -lage und Vollbild** | wird beim Verschieben gemerkt |
+| Versand-Merker | je Streamer, gilt für den laufenden Tag |
+
+Ein vorangestelltes Byte-Order-Mark – etwa weil die Datei mit einem Editor
+angefasst wurde – wird beim Lesen abgestreift, statt die Ablage fälschlich für
+beschädigt zu halten.
 
 Die App läuft außerdem nur noch einmal gleichzeitig – ein zweiter Start holt das
 vorhandene Fenster nach vorn, statt sich mit ihm um dieselbe Datei zu streiten.

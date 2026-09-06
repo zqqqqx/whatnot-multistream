@@ -39,9 +39,15 @@ function prepareSession(ses) {
 }
 
 function createWindow() {
+  // Zuletzt eingestellte Fenstergroesse und -lage wieder herstellen
+  const saved = readStore()[WINDOW_KEY] || {};
+  const usable = Number.isFinite(saved.width) && Number.isFinite(saved.height);
+
   win = new BrowserWindow({
-    width: 1680,
-    height: 980,
+    width: usable ? Math.max(900, saved.width) : 1680,
+    height: usable ? Math.max(600, saved.height) : 980,
+    x: Number.isFinite(saved.x) ? saved.x : undefined,
+    y: Number.isFinite(saved.y) ? saved.y : undefined,
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#0f1115',
@@ -57,7 +63,20 @@ function createWindow() {
     }
   });
 
+  if (saved.maximized) win.maximize();
   win.loadFile(path.join(__dirname, 'index.html'));
+
+  // Nicht bei jedem Pixel schreiben, sondern wenn das Schieben vorbei ist
+  let boundsTimer = null;
+  const remember = () => {
+    clearTimeout(boundsTimer);
+    boundsTimer = setTimeout(saveBounds, 500);
+  };
+  win.on('resize', remember);
+  win.on('move', remember);
+  win.on('maximize', remember);
+  win.on('unmaximize', remember);
+  win.on('close', () => { clearTimeout(boundsTimer); saveBounds(); });
 }
 
 /* ================= Selbstaktualisierung =================
@@ -154,7 +173,12 @@ function storePath(suffix) {
 }
 
 function readFileStore(file) {
-  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  // Ein vorangestelltes Byte-Order-Mark - etwa weil die Datei mit einem Editor
+  // angefasst wurde - laesst JSON.parse sonst scheitern und die Ablage
+  // faelschlich als beschaedigt gelten.
+  let raw = fs.readFileSync(file, 'utf8');
+  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1); // Byte-Order-Mark abstreifen
+  const data = JSON.parse(raw);
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('unerwarteter Inhalt');
   return data;
 }
@@ -200,10 +224,28 @@ ipcMain.on('wnms-store-read', (event) => {
   try { event.returnValue = readStore(); } catch (err) { event.returnValue = {}; }
 });
 
+// Zusammenfuehren statt ersetzen: Fenstergroesse schreibt der Hauptprozess,
+// alles andere der Renderer. Wuerde jeder die ganze Ablage ueberschreiben,
+// loeschte einer dem anderen seine Eintraege.
 ipcMain.handle('wnms-store-write', (_event, data) => {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
-  try { writeStore(data); return true; } catch (err) { return false; }
+  try { writeStore(Object.assign(readStore(), data)); return true; } catch (err) { return false; }
 });
+
+const WINDOW_KEY = 'wnms.window.v1';
+
+function saveBounds() {
+  if (!win || win.isDestroyed()) return;
+  try {
+    const bounds = win.isMaximized() ? win.getNormalBounds() : win.getBounds();
+    writeStore(Object.assign(readStore(), {
+      [WINDOW_KEY]: {
+        x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+        maximized: win.isMaximized()
+      }
+    }));
+  } catch (err) { /* dann bleibt die alte Groesse stehen */ }
+}
 
 // Zwischenablage: nur Text, und nur was der Renderer selbst zusammengestellt hat
 ipcMain.handle('wnms-copy', (_event, text) => {
