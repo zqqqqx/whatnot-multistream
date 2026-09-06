@@ -1,6 +1,6 @@
 {
   "name": "whatnot-multistream",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Bis zu 20 Whatnot-Streams gleichzeitig in einem Fenster",
   "main": "main.js",
   "scripts": {
@@ -29,6 +29,10 @@
     },
     "files": [
       "main.js",
+      "store.js",
+      "bans.js",
+      "account.js",
+      "banned-users.json",
       "preload-main.js",
       "preload-tile.js",
       "renderer.js",

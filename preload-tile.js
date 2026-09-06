@@ -7,6 +7,10 @@
 // während die anderen verkleinert bleiben.
 const { webFrame, ipcRenderer } = require('electron');
 
+// Taste, auf der die Lupe liegt. Steht hier und in renderer.js an genau einer
+// Stelle, damit Anzeige und Verhalten nicht auseinanderlaufen können.
+const LENS_KEY = 'Alt';
+
 ipcRenderer.on('wnms-zoom', (_event, factor, seq) => {
   try {
     webFrame.setZoomFactor(factor);
@@ -95,30 +99,55 @@ function watchSettled() {
 
 window.addEventListener('resize', watchSettled);
 
-// Die Lupe hängt an der Strg-Taste. Die App muss dafür wissen, wo der Zeiger
-// gerade steht – auch bevor die Taste gedrückt wird, denn die Lupe soll sofort
-// an der richtigen Stelle erscheinen.
-//
-// "track" ist an, solange diese Kachel im großen Modus läuft: dann meldet die
-// Seite die Zeigerposition sparsam (alle 50 ms), bei aktiver Lupe jede Bewegung.
+/* ================= Lupe: Taste halten =================
+ *
+ * Die Lupe liegt auf einer einzigen Taste (LENS_KEY) und gilt nur, solange die
+ * gehalten wird. Frueher steuerte zusaetzlich das Mausrad Groesse und
+ * Vergroesserung - das ist raus, beides steht jetzt in den Einstellungen.
+ *
+ * Der wunde Punkt einer gehaltenen Taste ist das Loslassen: Wandert der
+ * Tastaturfokus waehrenddessen weg (Kachel -> App-Fenster, Fenster -> anderes
+ * Programm), kommt nie ein keyup an und die Lupe bliebe haengen. Deshalb wird
+ * der Zustand der Taste bei *jedem* Ereignis nachgezogen: Maus, Tastatur,
+ * Fokuswechsel. Kommt irgendwo ein Ereignis ohne gedrueckte Taste an, geht die
+ * Lupe aus - egal, ob ein keyup dabei war.
+ */
 const TRACK_INTERVAL = 50;
 
-let trackOn = false;
-let lensOn = false;
-let ctrlHeld = false;
+let trackOn = false;   // diese Kachel laeuft im grossen Modus
+let lensOn = false;    // die App zeigt die Lupe gerade
+let keyHeld = false;
 let lastPoint = { x: 0, y: 0 };
 let lastSent = 0;
 
 ipcRenderer.on('wnms-track', (_event, on) => {
   trackOn = Boolean(on);
-  if (!trackOn) releaseCtrl();
+  if (!trackOn) releaseKey();
 });
-ipcRenderer.on('wnms-lens', (_event, on) => { lensOn = Boolean(on); });
+ipcRenderer.on('wnms-lens', (_event, on) => {
+  lensOn = Boolean(on);
+  if (!lensOn) keyHeld = false;
+});
 
-function releaseCtrl() {
-  if (!ctrlHeld) return;
-  ctrlHeld = false;
-  ipcRenderer.sendToHost('wnms-lensoff', lastPoint);
+function pressKey(point) {
+  if (keyHeld || !trackOn) return;
+  keyHeld = true;
+  try { ipcRenderer.sendToHost('wnms-lenson', point || lastPoint); } catch (err) {}
+}
+
+function releaseKey() {
+  if (!keyHeld) return;
+  keyHeld = false;
+  try { ipcRenderer.sendToHost('wnms-lensoff', lastPoint); } catch (err) {}
+}
+
+// Jedes Ereignis verraet nebenbei, ob die Taste noch liegt - das ist
+// verlaesslicher als auf ein keyup zu warten, das ausbleiben kann.
+function syncKey(event, point) {
+  if (!event) return;
+  const down = event.getModifierState ? event.getModifierState(LENS_KEY) : false;
+  if (down) pressKey(point);
+  else releaseKey();
 }
 
 // Die Kachel verschluckt sonst alle Mausereignisse: die rechte Maustaste wird
@@ -147,6 +176,7 @@ window.addEventListener('click', (event) => {
 
 window.addEventListener('mousemove', (event) => {
   lastPoint = { x: event.clientX, y: event.clientY };
+  syncKey(event, lastPoint);
 
   if (lensOn) {
     ipcRenderer.sendToHost('wnms-lensmove', lastPoint);
@@ -163,35 +193,33 @@ window.addEventListener('mousemove', (event) => {
 }, true);
 
 window.addEventListener('mouseup', (event) => {
+  syncKey(event, lastPoint);
   if (event.button !== 2 || !rightDown) return;
   rightDown = false;
   ipcRenderer.sendToHost('wnms-rup', { x: event.clientX, y: event.clientY });
 }, true);
 
-// Strg gedrückt = Lupe an, losgelassen = Lupe weg.
-// keydown wiederholt sich beim Halten, deshalb der ctrlHeld-Merker.
+// Taste gedrückt = Lupe an, losgelassen = Lupe weg.
+// keydown wiederholt sich beim Halten, deshalb der keyHeld-Merker.
 window.addEventListener('keydown', (event) => {
-  if (event.key !== 'Control' || ctrlHeld) return;
-  ctrlHeld = true;
-  ipcRenderer.sendToHost('wnms-lenson', lastPoint);
+  if (event.key === LENS_KEY) {
+    // Alt oeffnet im Browser sonst die Menuezeile bzw. verschluckt den nächsten
+    // Tastendruck - hier hat die Taste nur diese eine Aufgabe.
+    event.preventDefault();
+    pressKey(lastPoint);
+    return;
+  }
+  syncKey(event, lastPoint);
 }, true);
 
 window.addEventListener('keyup', (event) => {
-  if (event.key !== 'Control') return;
-  releaseCtrl();
+  if (event.key === LENS_KEY) { releaseKey(); return; }
+  syncKey(event, lastPoint);
 }, true);
 
 // Verlässt die Seite den Fokus, kommt kein keyup mehr an – Lupe trotzdem beenden
-window.addEventListener('blur', releaseCtrl);
-
-// Mausrad steuert die Lupe – die Seite darf dabei nicht mitscrollen.
-// passive:false, sonst ließe sich preventDefault() nicht aufrufen.
-window.addEventListener('wheel', (event) => {
-  if (!lensOn) return;
-  event.preventDefault();
-  event.stopPropagation();
-  ipcRenderer.sendToHost('wnms-lenswheel', { deltaY: event.deltaY, shift: event.shiftKey });
-}, { capture: true, passive: false });
+window.addEventListener('blur', releaseKey);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseKey(); });
 
 // Whatnots eigenes Kontextmenü unterdrücken – die App zeigt ihr eigenes
 window.addEventListener('contextmenu', (event) => event.preventDefault(), true);
@@ -226,11 +254,36 @@ function parseClock(text) {
   return Number(hit[1]) * 60 + Number(hit[2]);
 }
 
-// "Gebot: 8 €" -> "8 €" | "Der Versand betraegt 6,05 € + Steuern" -> "6,05 €"
+// "8,50" -> 8.5 | "1.234,56" -> 1234.56 | "1,234.56" -> 1234.56 | "12" -> 12
+// Welches Zeichen trennt die Nachkommastellen, verraet die Stellung: das
+// *letzte* Trennzeichen mit genau zwei Ziffern dahinter ist das Komma.
+function parseAmount(raw) {
+  let text = String(raw || '').replace(/\s/g, '');
+  if (!/\d/.test(text)) return null;
+  const lastComma = text.lastIndexOf(',');
+  const lastDot = text.lastIndexOf('.');
+  const cut = Math.max(lastComma, lastDot);
+  if (cut >= 0 && /^\d{1,2}$/.test(text.slice(cut + 1))) {
+    text = text.slice(0, cut).replace(/[.,]/g, '') + '.' + text.slice(cut + 1);
+  } else {
+    text = text.replace(/[.,]/g, '');
+  }
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+
+// "Gebot: 8 €" -> { text: "8 €", value: 8, currency: "€" }
+// "Der Versand betraegt 6,05 € + Steuern" -> { text: "6,05 €", value: 6.05, ... }
 function parseMoney(text) {
-  const hit = /(\d[\d.,]*)\s*(€|\$|£|EUR|USD)|(€|\$|£)\s*(\d[\d.,]*)/.exec(text || '');
-  if (!hit) return '';
-  return hit[1] ? hit[1] + ' ' + hit[2] : hit[3] + hit[4];
+  const hit = /(\d[\d.,]*)\s*(€|\$|£|EUR|USD|GBP)|(€|\$|£)\s*(\d[\d.,]*)/.exec(text || '');
+  if (!hit) return { text: '', value: null, currency: '' };
+  const digits = hit[1] || hit[4];
+  const currency = (hit[2] || hit[3] || '').replace(/EUR/i, '€').replace(/USD/i, '$').replace(/GBP/i, '£');
+  return {
+    text: hit[1] ? hit[1] + ' ' + (hit[2] || '') : (hit[3] || '') + hit[4],
+    value: parseAmount(digits),
+    currency: currency
+  };
 }
 
 // "amjiamj erhaelt den Zuschlag!" -> { wer: "amjiamj", zuschlag: false }
@@ -249,7 +302,7 @@ function readLot() {
   const bidText = testidText('show-bid-button');
   const statusText = testidText('show-winning-status');
   const winnerText = testidText('show-winner-message'); // erscheint erst beim Hammer
-  const shipping = testidText('show-shipping-info');
+  const shippingText = testidText('show-shipping-info');
   if (!title && !bidText && !timer) return null; // Auktionsteil noch nicht da
 
   // Der Hammer wird doppelt gemeldet: als Zustand ("... hat gewonnen!") und als
@@ -258,13 +311,19 @@ function readLot() {
   const status = parseStatus(statusText);
   const winner = parseStatus(winnerText);
   const done = winner.zuschlag || status.zuschlag;
+  const bid = parseMoney(bidText);
+  const shipping = parseMoney(shippingText);
+
   return {
     title: title,
     rest: parseClock(timer),          // Sekunden bis zum Hammer, null = kein Countdown
-    bid: parseMoney(bidText),         // was das naechste Gebot kostet
+    bid: bid.text,                    // was das naechste Gebot kostet
+    bidValue: bid.value,              // dasselbe als Zahl, fuer die Summe mit Versand
+    currency: bid.currency || shipping.currency,
     leader: (done && winner.wer) || status.wer || winner.wer,
     done: done,
-    shipping: parseMoney(shipping),   // Versandkosten dieses Verkaeufers
+    shipping: shipping.text,          // Versandkosten dieses Verkaeufers
+    shippingValue: shipping.value,
     statusText: (winnerText || statusText).slice(0, 90)
   };
 }
@@ -280,7 +339,93 @@ function pollLot() {
   try { ipcRenderer.sendToHost('wnms-lot', lot); } catch (err) {}
 }
 
+/* ================= Beitritts-Meldung ausblenden =================
+ *
+ * Beim Betreten einer Show wirft Whatnot eine Einblendung hoch ("Du nimmst
+ * jetzt an ... Stream teil"). Bei einer Wand aus Kacheln erscheint die reihum
+ * in jeder einzelnen und verdeckt jedes Mal ein Stueck Bild.
+ *
+ * Ausgeblendet wird deshalb *nur* diese eine Meldung, erkannt am Wortlaut -
+ * nicht etwa alles, was wie eine Einblendung aussieht. Fehlermeldungen,
+ * Gebotshinweise und der uebrige Kram bleiben also stehen. Vom Treffer aus geht
+ * es so weit nach oben, wie der Zweig nichts anderes als diesen Text enthaelt;
+ * damit verschwindet die Einblendung samt Rahmen, aber nichts darueber hinaus.
+ */
+const JOIN_PATTERNS = [
+  /du\s+nimmst\s+(?:jetzt\s+)?an\b[\s\S]{0,90}\bteil/i,
+  /nimmst\s+du\s+(?:jetzt\s+)?an\b[\s\S]{0,90}\bteil/i,
+  /du\s+bist\s+(?:jetzt\s+)?(?:dem|der|den)?\s*[\s\S]{0,60}\bbeigetreten/i,
+  /you(?:'re|’re|\s+are)\s+now\s+(?:in|watching|participating|attending)\b/i,
+  /you(?:'ve|’ve|\s+have)?\s*joined\b[\s\S]{0,60}\b(?:stream|show|livestream)/i
+];
 
+const JOIN_MAX_TEXT = 200; // Einblendungen sind kurz; alles Laengere ist etwas anderes
+const JOIN_MAX_UP = 5;     // so weit hoechstens nach oben gehen
+
+function looksLikeJoin(text) {
+  if (!text || text.length > JOIN_MAX_TEXT) return false;
+  return JOIN_PATTERNS.some((rule) => rule.test(text));
+}
+
+function joinBox(el) {
+  // Vom Textknoten aus nach oben, solange der Zweig nichts als diesen Text
+  // enthaelt - das ist die Einblendung mitsamt ihrem Rahmen.
+  const own = (el.textContent || '').trim();
+  let node = el;
+  for (let i = 0; i < JOIN_MAX_UP; i++) {
+    const parent = node.parentElement;
+    if (!parent || parent === document.body || parent === document.documentElement) break;
+    if (parent.querySelector('video')) break;                       // nie das Videoteil
+    if ((parent.textContent || '').trim() !== own) break;            // haette Geschwister
+    node = parent;
+  }
+  return node;
+}
+
+function hideJoin(el) {
+  try {
+    const box = joinBox(el);
+    if (box.dataset && box.dataset.wnmsJoinHidden) return;
+    if (box.dataset) box.dataset.wnmsJoinHidden = '1';
+    box.style.setProperty('display', 'none', 'important');
+  } catch (err) { /* Knoten schon wieder weg */ }
+}
+
+function scanJoin(root) {
+  if (!root || root.nodeType !== 1) return;
+  try {
+    if (looksLikeJoin((root.innerText || root.textContent || '').trim())) { hideJoin(root); return; }
+    // Nur in kleine Zweige hineinsehen - der Rest der Seite ist zu gross dafuer
+    const text = (root.textContent || '');
+    if (!text || text.length > JOIN_MAX_TEXT * 6) return;
+    for (const child of root.querySelectorAll('*')) {
+      if (looksLikeJoin((child.textContent || '').trim())) { hideJoin(child); return; }
+    }
+  } catch (err) { /* Baum aendert sich gerade */ }
+}
+
+let joinObserver = null;
+
+function watchJoin() {
+  if (joinObserver || !document.body) return;
+  joinObserver = new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) scanJoin(node);
+    }
+  });
+  joinObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+// Nachzuegler: Einblendungen mit eigener Rolle werden ohnehin gemeldet, aber
+// eine, die schon vor dem Beobachter dastand, faende er nie.
+function sweepJoin() {
+  for (const el of document.querySelectorAll('[role="status"], [role="alert"], [aria-live]')) {
+    if (looksLikeJoin((el.textContent || '').trim())) hideJoin(el);
+  }
+}
+
+if (document.body) watchJoin();
+else document.addEventListener('DOMContentLoaded', watchJoin, { once: true });
 
 /* ================= Nur den Chat ausblenden =================
  *
@@ -338,7 +483,18 @@ ipcRenderer.on('wnms-chat', (_event, on) => {
   applyChat();
 });
 
-setInterval(() => {
+const pulse = setInterval(() => {
   pollLot();
+  sweepJoin();
   if (chatHidden) applyChat(); // Whatnot baut die Oberflaeche neu auf - nachziehen
 }, LOT_POLL_MS);
+
+// Beim Verlassen der Seite alles abraeumen: Der Preload laeuft nach jeder
+// Navigation neu, ohne das blieben Beobachter und Takt doppelt liegen.
+window.addEventListener('pagehide', () => {
+  clearInterval(pulse);
+  clearInterval(settleTimer);
+  settleTimer = null;
+  if (joinObserver) { joinObserver.disconnect(); joinObserver = null; }
+  releaseKey();
+});

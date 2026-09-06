@@ -42,16 +42,19 @@ const FOCUS_ZOOM = 1;
 
 let previewZoom = 0.5;
 
-// Lupe: Groesse des Glases in Pixeln, Vergroesserung des Ausschnitts
+// Lupe: Groesse des Glases in Pixeln, Vergroesserung des Ausschnitts.
+// Gesteuert wird sie ueber genau eine gehaltene Taste; das Mausrad hat damit
+// nichts mehr zu tun (Groesse und Vergroesserung stehen in den Einstellungen).
+const LENS_KEY = 'Alt';        // muss zu LENS_KEY in preload-tile.js passen
+const LENS_KEY_LABEL = 'Alt';
 const LENS_START_SIZE = 260;
 const LENS_MIN_SIZE = 140;
 const LENS_MAX_SIZE = 620;
-const LENS_SIZE_STEP = 40;
 const LENS_START_MAG = 2.5;
 const LENS_MIN_MAG = 1.5;
 const LENS_MAX_MAG = 8;
-const LENS_MAG_STEP = 0.5;
 const LENS_FRAME_MS = 90;
+const LENS_GUARD_MS = 400;     // Takt des Waechters gegen eine haengende Lupe
 
 // Uebergang zwischen Vorschau und grossem Modus (siehe setFocus)
 const MORPH_MOVE_MS = 240;    // Standbild in die neue Groesse fahren
@@ -205,7 +208,18 @@ function readProfile(input, user) {
     if (img) avatar = img.getAttribute('src') || '';
   }
 
-  return { ok: true, shows: shows, avatar: avatar };
+  // 4) Nebenbei: Whatnot legt den angemeldeten Nutzer in jede Seite
+  //    (window.__whatnot__.loggerContext.usr.name). Das kostet hier nichts
+  //    extra und haelt den erkannten eigenen Namen aktuell - auch dann, wenn
+  //    sich jemand zwischendurch im Browserfenster anders anmeldet.
+  let me = '';
+  try {
+    const source = html || (doc && doc.documentElement ? doc.documentElement.innerHTML : '');
+    const hit = source.match(/"loggerContext":[^]{0,400}?"name":"([^"]+)"/);
+    if (hit && /^[A-Za-z0-9_.-]{2,40}$/.test(hit[1])) me = hit[1];
+  } catch (err) { /* dann eben nicht */ }
+
+  return { ok: true, shows: shows, avatar: avatar, me: me };
 }
 
 const READ_PROFILE_SRC = readProfile.toString();
@@ -284,8 +298,73 @@ const els = {
   lens: document.getElementById('lens'),
   lensImage: document.getElementById('lensImage'),
   lensLabel: document.getElementById('lensLabel'),
+  lensPop: document.getElementById('lensPop'),
+  lensPopKey: document.getElementById('lensPopKey'),
+  lensPopSize: document.getElementById('lensPopSize'),
+  lensPopSizeOut: document.getElementById('lensPopSizeOut'),
+  lensPopMag: document.getElementById('lensPopMag'),
+  lensPopMagOut: document.getElementById('lensPopMagOut'),
   toast: document.getElementById('toast'),
-  checker: document.getElementById('checker')
+  checker: document.getElementById('checker'),
+
+  // eigene Titelleiste
+  winMin: document.getElementById('winMin'),
+  winMax: document.getElementById('winMax'),
+  winClose: document.getElementById('winClose'),
+
+  // Einstellungen
+  settingsBtn: document.getElementById('settingsBtn'),
+  settingsPanel: document.getElementById('settingsPanel'),
+  settingsClose: document.getElementById('settingsClose'),
+  settingsTabs: document.getElementById('settingsTabs'),
+  optStartCheck: document.getElementById('optStartCheck'),
+  optRestoreSound: document.getElementById('optRestoreSound'),
+  optCols: document.getElementById('optCols'),
+  optView: document.getElementById('optView'),
+  optShowLot: document.getElementById('optShowLot'),
+  optShowTotal: document.getElementById('optShowTotal'),
+  optLensSize: document.getElementById('optLensSize'),
+  optLensSizeOut: document.getElementById('optLensSizeOut'),
+  optLensMag: document.getElementById('optLensMag'),
+  optLensMagOut: document.getElementById('optLensMagOut'),
+  optSetupAgain: document.getElementById('optSetupAgain'),
+  lensKeyHint: document.getElementById('lensKeyHint'),
+
+  // Konto
+  accAvatar: document.getElementById('accAvatar'),
+  accName: document.getElementById('accName'),
+  accState: document.getElementById('accState'),
+  accDot: document.getElementById('accDot'),
+  accLogin: document.getElementById('accLogin'),
+  accLoginLabel: document.getElementById('accLoginLabel'),
+
+  // Updates und Ueber
+  aboutVersion: document.getElementById('aboutVersion'),
+  aboutHint: document.getElementById('aboutHint'),
+  updateResult: document.getElementById('updateResult'),
+  updateCheckBtn: document.getElementById('updateCheckBtn'),
+  updateActionRow: document.getElementById('updateActionRow'),
+  updateActionText: document.getElementById('updateActionText'),
+  updateActionBtn: document.getElementById('updateActionBtn'),
+  repoBtn: document.getElementById('repoBtn'),
+
+  // Einrichtung
+  setup: document.getElementById('setup'),
+  setupSteps: document.getElementById('setupSteps'),
+  setupLogin: document.getElementById('setupLogin'),
+  setupLoginState: document.getElementById('setupLoginState'),
+  setupWho: document.getElementById('setupWho'),
+  setupForm: document.getElementById('setupForm'),
+  setupInput: document.getElementById('setupInput'),
+  setupList: document.getElementById('setupList'),
+  setupSkip: document.getElementById('setupSkip'),
+  setupBack: document.getElementById('setupBack'),
+  setupNext: document.getElementById('setupNext'),
+
+  // Sperre
+  locked: document.getElementById('lockedOverlay'),
+  lockedWho: document.getElementById('lockedWho'),
+  lockedQuit: document.getElementById('lockedQuit')
 };
 
 function icon(name) {
@@ -314,7 +393,7 @@ function load(key, fallback) {
     const raw = localStorage.getItem(key);
     if (raw !== null) {
       const value = JSON.parse(raw);
-      if (storeData) { storeData[key] = value; flushStore(); }
+      if (storeData) { storeData[key] = value; storeDirty.add(key); flushStore(); }
       return value;
     }
   } catch (err) { /* unbrauchbar - dann eben der Ersatzwert */ }
@@ -323,9 +402,22 @@ function load(key, fallback) {
 
 let storeFailed = false;
 
+/* Geschrieben wird nur, was dieses Fenster selbst geaendert hat.
+ *
+ * Der Grund: storeData ist die Abschrift vom Programmstart. Wuerde jedes Mal
+ * die ganze Abschrift hinausgehen, schriebe das Fenster auch Eintraege zurueck,
+ * die inzwischen der Hauptprozess gesetzt hat - Fenstergroesse, erkanntes Konto,
+ * Sperre. Die waeren damit auf dem Stand von vorhin und effektiv verworfen.
+ * (Genau daran ist eine gesetzte Sperre zuerst wieder verschwunden.)
+ */
+const storeDirty = new Set();
+
 function flushStore() {
-  if (!persistence || !storeData) return;
-  persistence.write(storeData).then((ok) => {
+  if (!persistence || !storeData || !storeDirty.size) return;
+  const patch = {};
+  for (const key of storeDirty) patch[key] = storeData[key];
+  storeDirty.clear();
+  persistence.write(patch).then((ok) => {
     if (ok || storeFailed) return;
     // Einmal melden, nicht bei jedem Schreibversuch
     storeFailed = true;
@@ -336,6 +428,7 @@ function flushStore() {
 function store(key, value) {
   if (storeData) {
     storeData[key] = value;
+    storeDirty.add(key);
     flushStore();
   }
   // Zweitschrift, damit eine aeltere Fassung der App die Liste noch findet
@@ -384,10 +477,14 @@ if (!Array.isArray(users)) {
 let settings = Object.assign({
   cols: 'auto',
   me: '',
-  view: 'full',      // Voreinstellung fuer neue Kacheln, vom Knopf oben gesetzt
-  unmuted: null,     // welcher Streamer zuletzt Ton hatte
-  lensSize: 0,       // Groesse des Lupenglases
-  lensMag: 0         // Vergroesserung der Lupe
+  view: 'full',        // Voreinstellung fuer neue Kacheln, vom Knopf oben gesetzt
+  unmuted: null,       // welcher Streamer zuletzt Ton hatte
+  lensSize: 0,         // Groesse des Lupenglases
+  lensMag: 0,          // Vergroesserung der Lupe
+  showLot: true,       // Los-Leiste am unteren Kachelrand
+  showTotal: true,     // Gesamtpreis inklusive Versand darunter
+  startCheck: true,    // beim Start sofort nachsehen, wer live ist
+  restoreSound: true   // den zuletzt hoerbaren Stream wieder aufdrehen
 }, load(SETTINGS_KEY, {}));
 
 function saveSettings() {
@@ -445,7 +542,9 @@ function clearShipping(userId) {
 const states = new Map(); // userId -> Live-Zustand
 const tiles = new Map();  // userId -> Kachel
 let focusedId = null;
-let unmutedId = settings.unmuted || null; // zuletzt gewaehlter Ton
+// Der zuletzt hoerbare Stream wird wieder aufgedreht, sobald seine Kachel da
+// ist - sofern das in den Einstellungen so bleibt.
+let unmutedId = settings.restoreSound === false ? null : (settings.unmuted || null);
 let unmutedBeforeFocus = null; // Ton, der vor dem Vergroessern lief
 let lens = null;
 
@@ -576,6 +675,10 @@ function applyProbe(user, result) {
   state.error = null;
   state.missing = Boolean(result.missing);
 
+  // Der eigene Name faellt beim Pruefen nebenbei ab - dort laeuft er durch
+  // dieselbe Stelle wie nach dem Anmelden (Konto merken, Sperre pruefen).
+  if (result.me) reportAccount(result.me);
+
   // Profilbild einmal merken - es steht dann sofort beim naechsten Start da
   if (result.avatar && user.avatar !== result.avatar) {
     user.avatar = result.avatar;
@@ -644,6 +747,7 @@ function checkUser(user) {
 }
 
 function checkAll() {
+  if (locked) return false;
   if (checking > 0) return false;
   if (!users.length) return false;
   for (const user of users.slice()) checkUser(user);
@@ -710,7 +814,7 @@ function updateEmptyState() {
     + (time ? ' (zuletzt geprüft ' + time + ').' : '.');
 }
 
-setInterval(checkAll, CHECK_INTERVAL);
+let checkTimer = setInterval(checkAll, CHECK_INTERVAL);
 
 /* ================= Kacheln ================= */
 
@@ -746,11 +850,14 @@ function createTile(user, state) {
 
   const audioBtn = addTileButton(actions, 'fa-volume-xmark', 'Ton für diesen Stream einschalten');
   const viewBtn = addTileButton(actions, 'fa-comments', 'Chat ausblenden');
+  // Nur in der Großansicht: erklärt die Lupe und stellt sie ein
+  const lensBtn = addTileButton(actions, 'fa-magnifying-glass', 'Lupe: ' + LENS_KEY_LABEL + ' halten');
   const externalBtn = addTileButton(actions, 'fa-arrow-up-right-from-square', 'Show im Browser öffnen');
   const focusBtn = addTileButton(actions, 'fa-expand', 'Groß anzeigen');
   const shrinkBtn = addTileButton(actions, 'fa-compress', 'Fokus verlassen');
   const reloadBtn = addTileButton(actions, 'fa-rotate-right', 'Neu laden');
   shrinkBtn.hidden = true;
+  lensBtn.hidden = true;
 
   head.append(liveDot, name, title, actions);
 
@@ -779,11 +886,18 @@ function createTile(user, state) {
   lotShip.appendChild(lotShipCount);
   const lotTitle = document.createElement('span');
   lotTitle.className = 'lot-title';
-  const lotBid = document.createElement('span');
+  // Preisblock: oben das naechste Gebot, darunter kleiner die Summe mit Versand
+  const lotPrice = document.createElement('span');
+  lotPrice.className = 'lot-price';
+  const lotBid = document.createElement('b');
   lotBid.className = 'lot-bid';
+  const lotTotal = document.createElement('small');
+  lotTotal.className = 'lot-total';
+  lotTotal.hidden = true;
+  lotPrice.append(lotBid, lotTotal);
   const lotTime = document.createElement('span');
   lotTime.className = 'lot-time';
-  lotBar.append(lotShip, lotTitle, lotBid, lotTime);
+  lotBar.append(lotShip, lotTitle, lotPrice, lotTime);
 
   body.append(webview, status, lotBar);
   el.append(head, body);
@@ -796,24 +910,31 @@ function createTile(user, state) {
     nameEl: name,
     audioBtn,
     viewBtn,
+    lensBtn,
     focusBtn,
     shrinkBtn,
     id: user.id,
     liveUrl: state.liveUrl,
+    // view = was gerade gilt, gridView = was im Raster eingestellt ist.
+    // Die Grossansicht setzt nur "view" und laesst "gridView" unberuehrt.
     view: VIEW_LOOK[user.view] ? user.view : (settings.view || 'full'),
+    gridView: VIEW_LOOK[user.view] ? user.view : (settings.view || 'full'),
     cleanKey: null,
     lotBar,
     lotShip,
     lotShipCount,
     lotTitle,
+    lotPrice,
     lotBid,
+    lotTotal,
     lotTime,
     lot: null,
     lastWonLot: ''
   };
 
   audioBtn.addEventListener('click', () => setUnmuted(unmutedId === user.id ? null : user.id));
-  viewBtn.addEventListener('click', () => applyView(tile, nextView(tile.view)));
+  lensBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleLensPop(lensBtn); });
+  viewBtn.addEventListener('click', () => applyView(tile, nextView(tile.gridView)));
   externalBtn.addEventListener('click', () => openInBrowser(tile.liveUrl));
   focusBtn.addEventListener('click', () => setFocus(focusedId === user.id ? null : user.id));
   shrinkBtn.addEventListener('click', () => setFocus(null));
@@ -832,17 +953,16 @@ function createTile(user, state) {
     // und muss vor der Leerpruefung durch
     if (event.channel === 'wnms-lot') { onLot(tile, info || null); return; }
     if (!info) return;
-    if (event.channel === 'wnms-lenswheel') { lensWheel(info); return; }
 
     const hostPoint = guestToHost(tile, info);
     if (event.channel === 'wnms-rdown') beginRightPress(user.id, hostPoint);
     else if (event.channel === 'wnms-rmove') moveRightPress(hostPoint);
     else if (event.channel === 'wnms-rup') endRightPress(hostPoint);
-    else if (event.channel === 'wnms-lenson') { ctrlDown = true; openLens(user.id, hostPoint); }
-    else if (event.channel === 'wnms-lensoff') { ctrlDown = false; closeLens(); }
+    else if (event.channel === 'wnms-lenson') { lensKeyDown = true; openLens(user.id, hostPoint); }
+    else if (event.channel === 'wnms-lensoff') { lensKeyDown = false; closeLens(); }
     else if (event.channel === 'wnms-lensmove') {
       lastPointer.set(user.id, hostPoint);
-      if (ctrlDown && !lens) openLens(user.id, hostPoint);
+      if (lensKeyDown && !lens) openLens(user.id, hostPoint);
       else moveLens(hostPoint);
     }
   });
@@ -857,7 +977,7 @@ function createTile(user, state) {
     setTimeout(() => dismissCookies(tile), 2500); // Banner erscheint teils verzögert
     // Nach einem Neuladen ist die eingefügte CSS weg – "Nur Video" nachziehen
     tile.cleanKey = null;
-    if (tile.view !== 'full') applyView(tile, tile.view, true);
+    if (tile.view !== 'full') applyView(tile, tile.view, { force: true, quiet: true });
     try { webview.send('wnms-track', tile.id === focusedId); } catch (err) {}
     if (lens && lens.tileId === tile.id) sendLensMode(tile, true);
   });
@@ -937,25 +1057,41 @@ function nextView(view) {
   return VIEW_ORDER[(at + 1) % VIEW_ORDER.length];
 }
 
-async function applyView(tile, mode, force, quiet) {
+/* Stellt eine Kachel auf eine der drei Ansichten.
+ *
+ * opts.force     - auch anwenden, wenn die Kachel schon so steht (nach Neuladen)
+ * opts.quiet     - nicht sofort in die Ablage schreiben (der Aufrufer tut es)
+ * opts.transient - nur fuer den Augenblick, nichts merken. Das ist der
+ *                  Grossansicht vorbehalten: dort sind Chat und Oberflaeche
+ *                  immer da, ohne dass die Einstellung des Rasters dabei
+ *                  verlorenginge (siehe applyFocusState).
+ */
+async function applyView(tile, mode, opts) {
+  const o = opts || {};
   if (!VIEW_LOOK[mode]) mode = 'full';
-  if (tile.view === mode && !force) return;
+  if (tile.view === mode && !o.force) return;
   tile.view = mode;
   tile.el.classList.toggle('clean', mode === 'video');
 
   // Die Wahl gehoert zum Streamer, nicht zur Kachel - so steht sie beim
-  // naechsten Start und nach jedem Neuaufbau der Kachel wieder da.
-  const user = users.find((entry) => entry.id === tile.id);
-  if (user && user.view !== mode) {
-    user.view = mode;
-    if (!quiet) store(USERS_KEY, users);
+  // naechsten Start und nach jedem Neuaufbau der Kachel wieder da. Was die
+  // Grossansicht kurzzeitig erzwingt, wird dagegen nicht gemerkt.
+  if (!o.transient) {
+    tile.gridView = mode;
+    const user = users.find((entry) => entry.id === tile.id);
+    if (user && user.view !== mode) {
+      user.view = mode;
+      if (!o.quiet) store(USERS_KEY, users);
+    }
   }
 
   if (tile.viewBtn) {
-    const look = VIEW_LOOK[mode];
+    // Der Knopf zeigt immer den Rasterzustand - in der Grossansicht ist er
+    // ohnehin ausgeblendet, dort gibt es nichts umzuschalten.
+    const look = VIEW_LOOK[tile.gridView] || VIEW_LOOK.full;
     tile.viewBtn.replaceChildren(icon(look.icon));
     tile.viewBtn.title = look.title;
-    tile.viewBtn.classList.toggle('on', mode !== 'full');
+    tile.viewBtn.classList.toggle('on', tile.gridView !== 'full');
   }
 
   // Bei "nur Video" ist der Chat ohnehin weg - dann nicht doppelt eingreifen
@@ -981,7 +1117,13 @@ function applyViewAll(mode) {
   store(USERS_KEY, users);
   saveSettings();
 
-  for (const tile of tiles.values()) applyView(tile, mode, true, true);
+  for (const tile of tiles.values()) {
+    // Die gross gezeigte Kachel behaelt Chat und Oberflaeche - gemerkt wird die
+    // Wahl trotzdem, sie gilt wieder, sobald die Grossansicht endet.
+    const inFocus = tile.id === focusedId;
+    if (inFocus) tile.gridView = mode;
+    applyView(tile, mode, { force: true, quiet: true, transient: inFocus });
+  }
   renderViewAll();
 
   const wording = { full: 'Alle Kacheln: ganze Seite', nochat: 'Alle Kacheln: ohne Chat', video: 'Alle Kacheln: nur Video' };
@@ -991,6 +1133,7 @@ function applyViewAll(mode) {
 function renderViewAll() {
   const mode = VIEW_LOOK[settings.view] ? settings.view : 'full';
   const look = VIEW_LOOK[mode];
+  if (els.optView) els.optView.value = mode;
   els.viewAll.replaceChildren(icon(look.icon));
   els.viewAll.classList.toggle('on', mode !== 'full');
   els.viewAll.title = 'Bei allen: ' + { full: 'Chat ausblenden', nochat: 'nur Video zeigen', video: 'ganze Seite zeigen' }[mode];
@@ -1032,10 +1175,37 @@ function onLot(tile, lot) {
   renderLot(tile);
 }
 
+function formatMoney(value, currency) {
+  const text = Number(value).toFixed(2).replace('.', ',');
+  return currency ? text + ' ' + currency : text;
+}
+
+/* Was das Los am Ende wirklich kostet.
+ *
+ * Gerechnet wird nur mit dem, was auf der Seite steht: dem naechsten Gebot und
+ * den Versandkosten dieses Verkaeufers. Fehlt eines von beiden, kommt hier
+ * nichts zurueck - eine geschaetzte Summe waere schlimmer als gar keine.
+ *
+ * Der Sonderfall ist die Buendelung: Ist bei diesem Verkaeufer heute schon ein
+ * Zuschlag gefallen, faellt fuer das naechste Los kein zweiter Versand an. Dann
+ * ist die Summe das Gebot selbst - und das wird auch so benannt.
+ */
+function totalWithShipping(tile, lot) {
+  if (!settings.showTotal || !lot) return null;
+  if (typeof lot.bidValue !== 'number' || !isFinite(lot.bidValue)) return null;
+
+  const currency = lot.currency || '';
+  const bundled = Boolean(shippingOf(tile.id));
+  if (bundled) return { value: lot.bidValue, bundled: true, currency: currency };
+
+  if (typeof lot.shippingValue !== 'number' || !isFinite(lot.shippingValue)) return null;
+  return { value: lot.bidValue + lot.shippingValue, bundled: false, currency: currency };
+}
+
 function renderLot(tile) {
   const lot = tile.lot;
   const ship = shippingOf(tile.id);
-  tile.lotBar.hidden = !lot && !ship;
+  tile.lotBar.hidden = !settings.showLot || (!lot && !ship);
   if (tile.lotBar.hidden) return;
 
   tile.lotShip.hidden = !ship;
@@ -1049,6 +1219,18 @@ function renderLot(tile) {
   tile.lotBid.textContent = lot ? lot.bid : '';
   tile.lotBid.hidden = !(lot && lot.bid);
 
+  // Zweite Zeile unter dem Preis: was mit Versand zusammenkommt
+  const total = totalWithShipping(tile, lot);
+  tile.lotTotal.hidden = !total;
+  if (total) {
+    tile.lotTotal.textContent = 'inkl. Versand: ' + formatMoney(total.value, total.currency);
+    tile.lotTotal.classList.toggle('bundled', total.bundled);
+    tile.lotTotal.title = total.bundled
+      ? 'Bei diesem Verkäufer läuft der Versand heute schon – für dieses Los kommt keiner mehr dazu.'
+      : 'Nächstes Gebot ' + lot.bid + ' plus Versand ' + lot.shipping;
+  }
+  tile.lotPrice.hidden = tile.lotBid.hidden && tile.lotTotal.hidden;
+
   const rest = lot && typeof lot.rest === 'number' ? lot.rest : null;
   tile.lotTime.hidden = rest === null;
   tile.lotTime.textContent = rest === null ? '' : formatRest(rest);
@@ -1059,26 +1241,53 @@ function renderLot(tile) {
   const parts = [];
   if (lot && lot.title) parts.push(lot.title);
   if (lot && lot.bid) parts.push('nächstes Gebot ' + lot.bid);
+  if (total) parts.push('mit Versand ' + formatMoney(total.value, total.currency) + (total.bundled ? ' (gebündelt)' : ''));
   if (lot && lot.statusText) parts.push(lot.statusText);
   if (lot && lot.shipping) parts.push('Versand ' + lot.shipping);
   if (ship) parts.push('heute schon ' + ship.count + ' Zuschlag' + (ship.count > 1 ? 'e' : '') + ' – Versand läuft');
   tile.lotBar.title = parts.join(' · ');
 }
-
-/* ================= Lupe (nur im großen Modus) =================
+/* ================= Lupe (nur in der Großansicht) =================
  *
- * Solange Strg gedrueckt ist, schwebt ueber der grossen Kachel ein Glas, das dem
- * Zeiger folgt. Die Kachel ist ein eigener Browser-View - der Wirt kann ihren
- * Inhalt also nicht einfach vergroessert nachzeichnen. Stattdessen wird genau der
- * Ausschnitt unter dem Glas abfotografiert (capturePage mit Rechteck) und
- * vergroessert eingesetzt.
+ * Solange die Lupentaste gedrueckt ist, schwebt ueber der grossen Kachel ein
+ * Glas, das dem Zeiger folgt. Die Kachel ist ein eigener Browser-View - der
+ * Wirt kann ihren Inhalt also nicht einfach vergroessert nachzeichnen.
+ * Stattdessen wird genau der Ausschnitt unter dem Glas abfotografiert
+ * (capturePage mit Rechteck) und vergroessert eingesetzt.
+ *
+ * Der wunde Punkt einer gehaltenen Taste ist das Loslassen: Wandert der
+ * Tastaturfokus dazwischen weg - von der Kachelseite ins App-Fenster, vom
+ * Fenster in ein anderes Programm -, kommt das keyup nie an und die Lupe bliebe
+ * stehen. Dagegen stehen drei Dinge:
+ *
+ *   1. Kachelseite und App-Fenster ziehen den Tastenzustand bei *jedem*
+ *      Ereignis nach (getModifierState), nicht nur beim keyup.
+ *   2. Jeder Fokusverlust beendet sie.
+ *   3. Ein Waechter sieht regelmaessig nach, ob die Voraussetzungen ueberhaupt
+ *      noch stimmen - fokussierte Kachel, Fenster im Vordergrund, Taste liegt.
  */
 
 // Die zuletzt eingestellte Lupe wieder aufnehmen
-let lensSize = settings.lensSize || LENS_START_SIZE;
-let lensMag = settings.lensMag || LENS_START_MAG;
+let lensSize = clampLensSize(settings.lensSize || LENS_START_SIZE);
+let lensMag = clampLensMag(settings.lensMag || LENS_START_MAG);
 const lastPointer = new Map(); // tileId -> zuletzt gemeldete Zeigerposition
-let ctrlDown = false;
+let lensKeyDown = false;       // liegt die Lupentaste gerade?
+let lensGuard = null;
+
+function clampLensSize(value) {
+  return Math.min(LENS_MAX_SIZE, Math.max(LENS_MIN_SIZE, Math.round(Number(value) || LENS_START_SIZE)));
+}
+
+function clampLensMag(value) {
+  const step = Math.round((Number(value) || LENS_START_MAG) * 2) / 2;
+  return Math.min(LENS_MAX_MAG, Math.max(LENS_MIN_MAG, step));
+}
+
+function tileCenter(tile) {
+  const rect = tile.el.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
 
 function sendLensMode(tile, on) {
   try { tile.webview.send('wnms-lens', on); } catch (err) {}
@@ -1097,10 +1306,14 @@ function openLens(tileId, point) {
     if (lens.tileId === tileId && point) moveLens(point);
     return;
   }
-  if (focusedId !== tileId) return; // die Lupe gehoert in den grossen Modus
+  if (focusedId !== tileId) return; // die Lupe gehoert in die Grossansicht
 
   const tile = tiles.get(tileId);
-  const where = point || lastPointer.get(tileId);
+  // Ist noch nie eine Zeigerposition gemeldet worden - etwa weil die Maus seit
+  // dem Vergroessern nicht bewegt wurde -, faengt die Lupe in der Kachelmitte
+  // an. Sie springt beim ersten Wackeln an die richtige Stelle; das ist besser,
+  // als auf einen Tastendruck gar nicht zu reagieren.
+  const where = point || lastPointer.get(tileId) || (tile ? tileCenter(tile) : null);
   if (!tile || !where) return;
   if (typeof tile.webview.capturePage !== 'function') {
     toast('Lupe wird von dieser Electron-Fassung nicht unterstützt');
@@ -1118,9 +1331,12 @@ function openLens(tileId, point) {
   drawLens();
   captureLens();
   sendLensMode(tile, true);
+  startLensGuard();
 }
 
 function closeLens() {
+  lensKeyDown = false;
+  stopLensGuard();
   if (!lens) return;
   clearInterval(lens.timer);
   const tile = tiles.get(lens.tileId);
@@ -1137,20 +1353,40 @@ function moveLens(point) {
   drawLens();
 }
 
-function lensWheel(info) {
-  if (!lens) return;
-  const step = info.deltaY > 0 ? -1 : 1;
-  if (info.shift) {
-    // Umschalt + Rad: staerker vergroessern
-    lensMag = Math.min(LENS_MAX_MAG, Math.max(LENS_MIN_MAG, lensMag + step * LENS_MAG_STEP));
-  } else {
-    // Rad: das Glas selbst groesser oder kleiner machen
-    lensSize = Math.min(LENS_MAX_SIZE, Math.max(LENS_MIN_SIZE, lensSize + step * LENS_SIZE_STEP));
-  }
+/* Der Waechter. Er stellt keine Vermutungen an, sondern prueft die drei
+ * Bedingungen, unter denen die Lupe ueberhaupt zu sehen sein darf. Faellt eine
+ * weg - die Kachel ist nicht mehr gross, das Fenster nicht mehr vorn, die
+ * Kachel gar nicht mehr da -, ist sofort Schluss. Damit kann sie nicht haengen
+ * bleiben, auch wenn irgendwo ein Loslassen verlorengeht. */
+function startLensGuard() {
+  if (lensGuard) return;
+  lensGuard = setInterval(() => {
+    if (!lens) { stopLensGuard(); return; }
+    const gone = !tiles.has(lens.tileId) || lens.tileId !== focusedId;
+    const away = !document.hasFocus() && !lensKeyDown;
+    if (gone || away || document.hidden) closeLens();
+  }, LENS_GUARD_MS);
+}
+
+function stopLensGuard() {
+  clearInterval(lensGuard);
+  lensGuard = null;
+}
+
+function setLensSize(value, quiet) {
+  lensSize = clampLensSize(value);
   settings.lensSize = lensSize;
-  settings.lensMag = lensMag;
-  saveSettings();
+  if (!quiet) saveSettings();
   drawLens();
+  renderLensControls();
+}
+
+function setLensMag(value, quiet) {
+  lensMag = clampLensMag(value);
+  settings.lensMag = lensMag;
+  if (!quiet) saveSettings();
+  drawLens();
+  renderLensControls();
 }
 
 function drawLens() {
@@ -1188,6 +1424,44 @@ async function captureLens() {
   if (lens) lens.busy = false;
 }
 
+/* ---- Der Lupenknopf in der Großansicht ----
+ * Ein Klick zeigt, auf welcher Taste die Lupe liegt, und laesst Glasgroesse und
+ * Vergroesserung einstellen - dafuer gab es frueher das Mausrad. */
+
+function renderLensControls() {
+  const sizeText = lensSize + ' px';
+  const magText = lensMag.toFixed(1).replace('.', ',') + '×';
+
+  if (els.lensPopSize) els.lensPopSize.value = String(lensSize);
+  if (els.lensPopMag) els.lensPopMag.value = String(lensMag);
+  if (els.lensPopSizeOut) els.lensPopSizeOut.textContent = sizeText;
+  if (els.lensPopMagOut) els.lensPopMagOut.textContent = magText;
+
+  if (els.optLensSize) els.optLensSize.value = String(lensSize);
+  if (els.optLensMag) els.optLensMag.value = String(lensMag);
+  if (els.optLensSizeOut) els.optLensSizeOut.textContent = sizeText;
+  if (els.optLensMagOut) els.optLensMagOut.textContent = magText;
+}
+
+function openLensPop(anchor) {
+  renderLensControls();
+  els.lensPop.hidden = false;
+  const box = anchor.getBoundingClientRect();
+  const pop = els.lensPop.getBoundingClientRect();
+  const left = Math.min(box.left + box.width / 2 - pop.width / 2, window.innerWidth - pop.width - 8);
+  els.lensPop.style.left = Math.max(8, left) + 'px';
+  els.lensPop.style.top = Math.min(box.bottom + 8, window.innerHeight - pop.height - 8) + 'px';
+}
+
+function closeLensPop() {
+  els.lensPop.hidden = true;
+}
+
+function toggleLensPop(anchor) {
+  if (els.lensPop.hidden) openLensPop(anchor);
+  else closeLensPop();
+}
+
 /* ================= Zustand -> Raster ================= */
 
 // Angezeigt wird, wer gerade live und nicht versteckt ist.
@@ -1202,6 +1476,7 @@ function hiddenLiveUsers() {
 }
 
 function syncTiles() {
+  if (locked) return;
   const wanted = visibleUsers();
   const wantedIds = new Set(wanted.map((user) => user.id));
 
@@ -1327,7 +1602,15 @@ function layout() {
     // Im Fokus zeigt die Kachel das Verkleinern-Symbol statt des Vergrößerns
     tile.shrinkBtn.hidden = !isFocused;
     tile.focusBtn.hidden = isFocused;
+    // Chat und Oberflaeche lassen sich nur im Raster umschalten - in der
+    // Grossansicht sind sie immer da, der Knopf haette dort nichts zu tun.
+    tile.viewBtn.hidden = isFocused;
+    // Die Lupe gibt es nur in der Grossansicht, also auch ihr Knopf nur dort
+    tile.lensBtn.hidden = !isFocused;
   }
+
+  // Derselbe Grund fuer den Knopf oben: er stellt das Raster ein
+  els.viewAll.hidden = Boolean(focusedId);
 }
 
 /* ================= Rechte Maustaste: Menü und Umsortieren ================= */
@@ -1416,10 +1699,19 @@ function openTileMenu(id, point) {
   if (!user || !tile) return;
   els.menu.dataset.id = id;
   els.menuTitle.textContent = user.username;
+
+  // In der Grossansicht sind Chat und Oberflaeche gesetzt - die beiden
+  // Umschalter waeren dort wirkungslos und stehen deshalb gar nicht erst da.
+  const inFocus = id === focusedId;
+  for (const action of ['chat', 'clean']) {
+    const entry = els.menu.querySelector('[data-action="' + action + '"]');
+    if (entry) entry.hidden = inFocus;
+  }
+
   const chatLabel = els.menu.querySelector('[data-role="chat-label"]');
-  if (chatLabel) chatLabel.textContent = tile.view === 'nochat' ? 'Chat wieder zeigen' : 'Chat ausblenden';
+  if (chatLabel) chatLabel.textContent = tile.gridView === 'nochat' ? 'Chat wieder zeigen' : 'Chat ausblenden';
   const cleanLabel = els.menu.querySelector('[data-role="clean-label"]');
-  if (cleanLabel) cleanLabel.textContent = tile.view === 'video' ? 'Ganze Seite zeigen' : 'Nur Video zeigen';
+  if (cleanLabel) cleanLabel.textContent = tile.gridView === 'video' ? 'Ganze Seite zeigen' : 'Nur Video zeigen';
   const shipLabel = els.menu.querySelector('[data-role="ship-label"]');
   if (shipLabel) shipLabel.textContent = shippingOf(id) ? 'Versand-Merker entfernen' : 'Versand läuft heute schon';
   els.menu.hidden = false;
@@ -1556,8 +1848,24 @@ function applyFocusState(id) {
   // Beim Vergrößern läuft der Ton dieser Show, beim Verkleinern wieder der
   // Zustand von vorher – meist also wieder alles stumm.
   if (id && !focusedId) unmutedBeforeFocus = unmutedId;
+  const before = focusedId;
   focusedId = id;
-  if (!id) closeLens();
+  closeLens();     // die Lupe gehoert immer nur zur gerade grossen Kachel
+  closeLensPop();
+
+  /* In der Grossansicht sind Chat und Oberflaeche da - dort will man bieten,
+   * lesen und schreiben. Das ueberschreibt aber nicht, was fuer das Raster
+   * eingestellt ist: gesetzt wird nur der Augenblickszustand (transient), und
+   * beim Verlassen kommt genau der gemerkte Rasterzustand zurueck. */
+  if (before && before !== id) {
+    const back = tiles.get(before);
+    if (back) applyView(back, back.gridView, { force: true, quiet: true, transient: true });
+  }
+  if (id) {
+    const tile = tiles.get(id);
+    if (tile) applyView(tile, 'full', { force: true, quiet: true, transient: true });
+  }
+
   layout();
   for (const tile of tiles.values()) applyZoom(tile);
   setPointerTracking();
@@ -2071,7 +2379,8 @@ els.check.addEventListener('click', requestCheck);
 
 els.cols.addEventListener('change', () => {
   settings.cols = els.cols.value;
-  store(SETTINGS_KEY, settings);
+  els.optCols.value = settings.cols;   // derselbe Schalter steht auch in den Einstellungen
+  saveSettings();
   layout();
 });
 
@@ -2092,10 +2401,6 @@ els.reloadAll.addEventListener('click', () => {
   }
 });
 
-els.login.addEventListener('click', () => {
-  window.open('https://www.whatnot.com/', '_blank');
-});
-
 // Während des Ziehens laufen die Mausereignisse über das Overlay
 els.dragOverlay.addEventListener('mousemove', (e) => moveRightPress({ x: e.clientX, y: e.clientY }));
 els.dragOverlay.addEventListener('mouseup', (e) => endRightPress({ x: e.clientX, y: e.clientY }));
@@ -2113,8 +2418,8 @@ els.menu.addEventListener('click', (e) => {
   else if (action === 'hide') setHidden(id, true);
   else if (action === 'focus') setFocus(id);
   else if (!tile) return;
-  else if (action === 'clean') applyView(tile, tile.view === 'video' ? 'full' : 'video');
-  else if (action === 'chat') applyView(tile, tile.view === 'nochat' ? 'full' : 'nochat');
+  else if (action === 'clean') applyView(tile, tile.gridView === 'video' ? 'full' : 'video');
+  else if (action === 'chat') applyView(tile, tile.gridView === 'nochat' ? 'full' : 'nochat');
   else if (action === 'external') openInBrowser(tile.liveUrl);
   else if (action === 'reload') { try { tile.webview.loadURL(tile.liveUrl); } catch (err) {} }
   else if (action === 'ship') {
@@ -2127,6 +2432,7 @@ els.menu.addEventListener('click', (e) => {
 document.addEventListener('mousedown', (e) => {
   if (!els.menu.hidden && !els.menu.contains(e.target)) closeTileMenu();
   if (!els.hiddenPop.hidden && !els.hiddenPop.contains(e.target) && !els.hiddenBtn.contains(e.target)) closeHiddenPop();
+  if (!els.lensPop.hidden && !els.lensPop.contains(e.target)) closeLensPop();
 });
 
 // Loslassen und Ziehen außerhalb der Kachelseiten (z. B. auf der Kopfzeile)
@@ -2137,25 +2443,48 @@ document.addEventListener('mouseup', (e) => {
   if (e.button === 2 && rightPress) endRightPress({ x: e.clientX, y: e.clientY });
 });
 
-// Strg auch dann auswerten, wenn die Tastatur beim App-Fenster liegt und nicht
-// bei der Kachelseite - sonst haengt die Lupe davon ab, wo zuletzt geklickt wurde.
+// Die Lupentaste auch dann auswerten, wenn die Tastatur beim App-Fenster liegt
+// und nicht bei der Kachelseite - sonst haenge die Lupe davon ab, wo zuletzt
+// geklickt wurde. Bei jedem Ereignis wird zugleich nachgezogen, ob die Taste
+// ueberhaupt noch liegt; auf ein keyup allein ist kein Verlass.
+function syncLensKey(event) {
+  const down = event && event.getModifierState ? event.getModifierState(LENS_KEY) : false;
+  if (down && focusedId) {
+    lensKeyDown = true;
+    if (!lens) openLens(focusedId, null);
+  } else if (!down) {
+    lensKeyDown = false;
+    if (lens) closeLens();
+  }
+}
+
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Control') return;
-  ctrlDown = true;
-  if (focusedId) openLens(focusedId, null);
-});
+  if (e.key === LENS_KEY) {
+    e.preventDefault(); // Alt wuerde sonst den naechsten Tastendruck verschlucken
+    lensKeyDown = true;
+    if (focusedId) openLens(focusedId, null);
+    return;
+  }
+  syncLensKey(e);
+}, true);
+
 document.addEventListener('keyup', (e) => {
-  if (e.key !== 'Control') return;
-  ctrlDown = false;
-  closeLens();
-});
-window.addEventListener('blur', () => { ctrlDown = false; closeLens(); });
+  if (e.key === LENS_KEY) { closeLens(); return; }
+  syncLensKey(e);
+}, true);
+
+document.addEventListener('mousemove', syncLensKey, true);
+window.addEventListener('blur', closeLens);
+document.addEventListener('visibilitychange', () => { if (document.hidden) closeLens(); });
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!els.menu.hidden) closeTileMenu();
+  else if (!els.lensPop.hidden) closeLensPop();
   else if (!els.hiddenPop.hidden) closeHiddenPop();
+  else if (!els.settingsPanel.hidden) closeSettings();
   else if (!els.panel.hidden) closePanel();
+  else if (!els.setup.hidden) closeSetup();
   else if (focusedId) setFocus(null);
 });
 
@@ -2199,10 +2528,50 @@ function text(value) {
 }
 
 function onUpdateState(state) {
+  const before = updateInfo.state;
   updateInfo = state || { state: 'idle' };
   renderUpdate();
-  if (updateInfo.state === 'available') toast('Version ' + updateInfo.version + ' ist da – oben laden');
-  if (updateInfo.state === 'error' && updateInfo.loud) toast('Aktualisierung: ' + updateInfo.message);
+  renderAbout();
+  if (updateInfo.state === 'available' && before !== 'available') {
+    toast('Version ' + updateInfo.version + ' ist da – oben laden');
+  }
+  if (updateInfo.state === 'error' && updateInfo.asked) {
+    toast('Aktualisierung: ' + updateInfo.message);
+  }
+}
+
+/* Derselbe Zustand, nur ausfuehrlich: der Reiter "Updates & Über" sagt auch
+ * dann etwas, wenn es nichts zu tun gibt ("du hast die neueste Fassung") -
+ * der Knopf oben taucht dafuer gar nicht erst auf. */
+function renderAbout() {
+  if (!els.updateResult) return;
+  const state = updateInfo.state;
+  const version = updateInfo.version || '';
+
+  const wording = {
+    idle: 'Noch nicht nachgesehen. Die App sieht von sich aus alle drei Stunden nach.',
+    checking: 'Sehe bei GitHub nach …',
+    current: 'Alles aktuell – es gibt keine neuere Fassung.',
+    available: 'Version ' + version + ' steht bereit.',
+    downloading: 'Wird geladen … ' + (updateInfo.percent || 0) + ' %',
+    ready: 'Version ' + version + ' ist geladen und wird beim Neustart eingespielt.',
+    error: 'Nachsehen fehlgeschlagen: ' + (updateInfo.message || 'unbekannter Grund'),
+    dev: 'Läuft aus dem Quelltext – hier gibt es nichts zu aktualisieren.'
+  };
+  els.updateResult.textContent = wording[state] || wording.idle;
+  els.updateCheckBtn.disabled = state === 'checking' || state === 'downloading';
+
+  const showAction = state === 'available' || state === 'ready';
+  els.updateActionRow.hidden = !showAction;
+  if (!showAction) return;
+
+  if (state === 'available') {
+    els.updateActionText.textContent = 'Herunterladen (rund 110 MB, läuft im Hintergrund).';
+    els.updateActionBtn.replaceChildren(icon('fa-arrow-down'), text(' Version ' + version + ' laden'));
+  } else {
+    els.updateActionText.textContent = 'Die App startet dafür einmal neu.';
+    els.updateActionBtn.replaceChildren(icon('fa-circle-check'), text(' Jetzt neu starten'));
+  }
 }
 
 if (window.wnms && window.wnms.update) {
@@ -2213,30 +2582,500 @@ if (window.wnms && window.wnms.update) {
     if (updateInfo.state === 'available') window.wnms.update.download();
     else if (updateInfo.state === 'ready') window.wnms.update.install();
   });
+
+  els.updateCheckBtn.addEventListener('click', () => window.wnms.update.check());
+  els.updateActionBtn.addEventListener('click', () => {
+    if (updateInfo.state === 'available') window.wnms.update.download();
+    else if (updateInfo.state === 'ready') window.wnms.update.install();
+  });
+} else {
+  els.updateCheckBtn.disabled = true;
 }
+/* ================= Eigene Titelleiste =================
+ *
+ * Der Systemrahmen ist weg (frame: false in main.js). Verschieben und der
+ * Doppelklick zum Maximieren machen die Leiste selbst - dafuer traegt sie
+ * -webkit-app-region: drag, alles Bedienbare darin traegt no-drag. Nur die drei
+ * Knoepfe rechts brauchen den Hauptprozess.
+ */
+const winApi = (window.wnms && window.wnms.window) ? window.wnms.window : null;
+
+function renderWindowState(state) {
+  const maximized = Boolean(state && state.maximized);
+  document.body.classList.toggle('is-maximized', maximized);
+  els.winMax.title = maximized ? 'Wiederherstellen' : 'Maximieren';
+  els.winMax.setAttribute('aria-label', els.winMax.title);
+}
+
+if (winApi) {
+  els.winMin.addEventListener('click', () => winApi.minimize());
+  els.winMax.addEventListener('click', () => winApi.toggleMaximize().then(renderWindowState).catch(() => {}));
+  els.winClose.addEventListener('click', () => winApi.close());
+  winApi.onChange(renderWindowState);
+  winApi.state().then(renderWindowState).catch(() => {});
+}
+
+/* ================= Konto: Anmeldung, Name, Sperre =================
+ *
+ * Der eigene Whatnot-Name wird nicht mehr eingetippt. Er faellt an zwei Stellen
+ * von allein an: beim Anmelden im eigenen Fenster und nebenbei bei jedem
+ * Live-Abgleich (siehe readProfile). Beides laeuft ueber dieselbe Stelle im
+ * Hauptprozess (account.js), die ihn merkt und gegen die Sperrliste haelt.
+ */
+const accountApi = (window.wnms && window.wnms.account) ? window.wnms.account : null;
+
+let account = { username: '', loggedIn: false, banned: false };
+let loginBusy = false;
+let locked = false;
+let lastReported = '';   // zuletzt gemeldeter Name, damit nicht jede Runde schreibt
+
+function applyAccount(state) {
+  account = Object.assign({ username: '', loggedIn: false, banned: false }, state || {});
+
+  // Der erkannte Name ist zugleich der, an dem die Versand-Buendelung haengt.
+  // Eingetippt werden muss er dafuer nicht mehr.
+  if (account.username && !account.banned && settings.me !== account.username) {
+    settings.me = account.username;
+    saveSettings();
+    for (const tile of tiles.values()) renderLot(tile);
+    renderUserList();
+  }
+  if (els.meInput !== document.activeElement) els.meInput.value = settings.me || '';
+
+  renderAccount();
+  if (account.banned) lockDown();
+  if (!els.setup.hidden) renderSetup();
+}
+
+function renderAccount() {
+  const name = account.username || '';
+  els.accName.textContent = name || 'Nicht angemeldet';
+  els.accDot.classList.toggle('on', Boolean(name));
+  els.accState.textContent = name
+    ? 'Angemeldet – die Streams laufen mit diesem Konto.'
+    : 'Ohne Anmeldung zeigt Whatnot nur ein Vorschaubild statt der Show.';
+  els.accLoginLabel.textContent = loginBusy
+    ? 'Anmeldefenster ist offen …'
+    : (name ? 'Konto wechseln' : 'Anmelden');
+  els.accLogin.disabled = loginBusy || locked;
+  els.login.classList.toggle('on', Boolean(name));
+  els.login.title = name ? 'Angemeldet als ' + name + ' – Konto wechseln' : 'Bei Whatnot anmelden';
+
+  els.accAvatar.replaceChildren();
+  const known = name ? users.find((user) => user.username.toLowerCase() === name.toLowerCase() && user.avatar) : null;
+  if (known) {
+    const img = document.createElement('img');
+    img.src = known.avatar;
+    img.alt = '';
+    img.addEventListener('error', () => { img.remove(); els.accAvatar.appendChild(icon('fa-user')); });
+    els.accAvatar.appendChild(img);
+  } else {
+    els.accAvatar.appendChild(icon(name ? 'fa-user-check' : 'fa-user'));
+  }
+}
+
+// Nebenbei aufgeschnappter Name. Gemeldet wird nur, was neu ist - sonst
+// schriebe jede Pruefrunde fuenfzehnmal dieselbe Zeile in die Ablage.
+function reportAccount(name) {
+  if (!accountApi || locked) return;
+  const value = String(name || '').trim();
+  if (!value || value.toLowerCase() === lastReported) return;
+  lastReported = value.toLowerCase();
+  accountApi.observe(value).then(applyAccount).catch(() => {});
+}
+
+// ... aber nicht fuer immer: alle zehn Minuten wird wieder hingesehen, damit
+// eine inzwischen dazugekommene Sperre nicht bis zum Neustart wartet.
+setInterval(() => { lastReported = ''; }, 10 * 60 * 1000);
+
+function refreshAccount() {
+  if (!accountApi) return Promise.resolve();
+  return accountApi.state().then(applyAccount).catch(() => {});
+}
+
+function reloadEverything(message) {
+  if (message) toast(message);
+  for (const tile of tiles.values()) {
+    try { tile.webview.loadURL(tile.liveUrl); } catch (err) { /* Kachel gerade weg */ }
+  }
+  // Auch der Pruefhelfer arbeitet mit den Cookies - der muss die neuen sehen
+  try { els.checker.loadURL(CHECKER_HOME); } catch (err) {}
+}
+
+/* Der ganze Anmeldeweg an einer Stelle: Fenster auf, Erfolg abwarten, Konto
+ * uebernehmen, Streams neu laden. Ein Abbruch loest bewusst nichts davon aus. */
+async function doLogin() {
+  if (locked) return null;
+  if (!accountApi) { openInBrowser('https://www.whatnot.com/'); return null; }
+  if (loginBusy) { toast('Das Anmeldefenster ist schon offen'); return null; }
+
+  loginBusy = true;
+  renderAccount();
+  renderSetup();
+
+  let info = null;
+  try { info = await accountApi.login(); } catch (err) { info = null; }
+  info = info || { result: 'cancelled' };
+
+  loginBusy = false;
+  await refreshAccount();
+
+  if (info.result === 'ok') {
+    lastReported = String(info.username || '').toLowerCase();
+    if (info.reload) reloadEverything('Angemeldet als ' + info.username + ' – Streams werden neu geladen');
+    else toast('Bereits angemeldet als ' + info.username);
+  } else if (info.result === 'banned') {
+    lockDown();
+  } else if (info.result === 'cancelled') {
+    toast('Anmeldung abgebrochen – es wurde nichts neu geladen');
+  } else if (info.result === 'busy') {
+    toast('Das Anmeldefenster ist schon offen');
+  }
+
+  renderAccount();
+  renderSetup();
+  return info;
+}
+
+/* Gesperrtes Konto. Die App wird stillgelegt: keine Kacheln, keine Pruefung,
+ * kein Zugriff auf die Bedienung. Der Deckel liegt ueber allem und laesst sich
+ * nicht wegklicken - und weil die Sperre in der Ablage steht, ist sie beim
+ * naechsten Start sofort wieder da. */
+function lockDown() {
+  if (locked) return;
+  locked = true;
+
+  closeLens();
+  closeLensPop();
+  closeTileMenu();
+  closeHiddenPop();
+  closePanel();
+  closeSettings();
+  closeSetup(true);
+
+  focusedId = null;
+  clearInterval(checkTimer);
+  for (const [id, tile] of tiles) {
+    try { tile.webview.loadURL('about:blank'); } catch (err) {}
+    tile.el.remove();
+    tiles.delete(id);
+  }
+  try { els.checker.loadURL('about:blank'); } catch (err) {}
+
+  els.lockedWho.textContent = account.username
+    ? 'Betroffenes Konto: ' + account.username
+    : '';
+  els.locked.hidden = false;
+}
+
+els.lockedQuit.addEventListener('click', () => {
+  if (winApi) winApi.close();
+  else window.close();
+});
+
+els.login.addEventListener('click', () => doLogin());
+els.accLogin.addEventListener('click', () => doLogin());
+
+if (accountApi) {
+  accountApi.onChange(applyAccount);
+  refreshAccount();
+}
+
+/* ================= Einstellungen ================= */
+
+const SETTINGS_TABS = ['general', 'account', 'about'];
+let settingsTab = 'general';
+
+function openSettings(tab) {
+  if (locked) return;
+  showSettingsTab(tab || settingsTab);
+  renderSettings();
+  els.settingsPanel.hidden = false;
+}
+
+function closeSettings() {
+  els.settingsPanel.hidden = true;
+}
+
+function showSettingsTab(tab) {
+  settingsTab = SETTINGS_TABS.indexOf(tab) >= 0 ? tab : 'general';
+  for (const button of els.settingsTabs.querySelectorAll('[data-tab]')) {
+    button.classList.toggle('on', button.dataset.tab === settingsTab);
+  }
+  for (const page of els.settingsPanel.querySelectorAll('[data-page]')) {
+    page.hidden = page.dataset.page !== settingsTab;
+  }
+}
+
+// Alle Schalter zeigen, was gerade gilt - egal ob es hier oder oben in der
+// Leiste eingestellt wurde.
+function renderSettings() {
+  els.optStartCheck.checked = settings.startCheck !== false;
+  els.optRestoreSound.checked = settings.restoreSound !== false;
+  els.optCols.value = settings.cols;
+  els.optView.value = VIEW_LOOK[settings.view] ? settings.view : 'full';
+  els.optShowLot.checked = settings.showLot !== false;
+  els.optShowTotal.checked = settings.showTotal !== false;
+  els.lensKeyHint.textContent = LENS_KEY_LABEL;
+  renderLensControls();
+  renderAccount();
+  renderAbout();
+}
+
+els.settingsBtn.addEventListener('click', () => (els.settingsPanel.hidden ? openSettings() : closeSettings()));
+els.settingsClose.addEventListener('click', closeSettings);
+els.settingsPanel.addEventListener('mousedown', (e) => { if (e.target === els.settingsPanel) closeSettings(); });
+
+els.settingsTabs.addEventListener('click', (e) => {
+  const button = e.target.closest('[data-tab]');
+  if (button) showSettingsTab(button.dataset.tab);
+});
+
+els.optStartCheck.addEventListener('change', () => {
+  settings.startCheck = els.optStartCheck.checked;
+  saveSettings();
+});
+
+els.optRestoreSound.addEventListener('change', () => {
+  settings.restoreSound = els.optRestoreSound.checked;
+  saveSettings();
+});
+
+els.optCols.addEventListener('change', () => {
+  settings.cols = els.optCols.value;
+  els.cols.value = settings.cols;
+  saveSettings();
+  layout();
+});
+
+els.optView.addEventListener('change', () => applyViewAll(els.optView.value));
+
+els.optShowLot.addEventListener('change', () => {
+  settings.showLot = els.optShowLot.checked;
+  saveSettings();
+  for (const tile of tiles.values()) renderLot(tile);
+});
+
+els.optShowTotal.addEventListener('change', () => {
+  settings.showTotal = els.optShowTotal.checked;
+  saveSettings();
+  for (const tile of tiles.values()) renderLot(tile);
+});
+
+els.optLensSize.addEventListener('input', () => setLensSize(els.optLensSize.value));
+els.optLensMag.addEventListener('input', () => setLensMag(els.optLensMag.value));
+els.lensPopSize.addEventListener('input', () => setLensSize(els.lensPopSize.value));
+els.lensPopMag.addEventListener('input', () => setLensMag(els.lensPopMag.value));
+els.lensPop.addEventListener('mousedown', (e) => e.stopPropagation());
+
+els.optSetupAgain.addEventListener('click', () => {
+  closeSettings();
+  restartSetup();
+});
+
+els.repoBtn.addEventListener('click', () => openInBrowser(appInfo.repo || REPO_FALLBACK));
+
+/* ================= Einrichtung beim ersten Start =================
+ *
+ * Fuehrt der Reihe nach durch das, was einmal getan werden muss: anmelden,
+ * Streamer eintragen, das Wichtigste zur Bedienung. Der Fortschritt steht in
+ * der Ablage - wer abbricht, macht beim naechsten Start an derselben Stelle
+ * weiter, und wer durch ist, sieht den Assistenten nie wieder (ausser er ruft
+ * ihn in den Einstellungen selbst wieder auf).
+ */
+const SETUP_KEY = 'wnms.setup.v1';
+const SETUP_LAST = 5;
+
+let setupState = Object.assign({ done: false, step: 1 }, load(SETUP_KEY, null) || {});
+
+// Wer die App schon benutzt hat, hat die Einrichtung laengst hinter sich - dem
+// soll der Assistent nach einer Aktualisierung nicht ploetzlich vor der Nase
+// stehen. Erkennbar ist das an der vorhandenen Streamerliste.
+if (load(SETUP_KEY, null) === null && users.length) {
+  setupState = { done: true, step: SETUP_LAST };
+  store(SETUP_KEY, setupState);
+}
+
+function saveSetup() {
+  store(SETUP_KEY, setupState);
+}
+
+function setupStep(step) {
+  setupState.step = Math.min(SETUP_LAST, Math.max(1, Number(step) || 1));
+  saveSetup();
+  renderSetup();
+}
+
+function openSetup() {
+  if (locked) return;
+  closePanel();
+  closeSettings();
+  els.setup.hidden = false;
+  renderSetup();
+}
+
+function closeSetup(silent) {
+  if (els.setup.hidden) return;
+  els.setup.hidden = true;
+  // Abgebrochen heisst: nicht fertig. Beim naechsten Start geht es hier weiter.
+  if (!silent && !setupState.done && !users.length) openPanel();
+}
+
+function finishSetup() {
+  setupState.done = true;
+  setupState.step = SETUP_LAST;
+  saveSetup();
+  closeSetup(true);
+  toast('Einrichtung abgeschlossen – viel Erfolg beim Schnappen');
+}
+
+function restartSetup() {
+  setupState = { done: false, step: 1 };
+  saveSetup();
+  openSetup();
+}
+
+function renderSetup() {
+  if (els.setup.hidden) return;
+  const step = setupState.step;
+
+  for (const page of els.setup.querySelectorAll('.setup-page')) {
+    page.hidden = Number(page.dataset.step) !== step;
+  }
+
+  // Punktleiste oben
+  els.setupSteps.replaceChildren();
+  for (let i = 1; i <= SETUP_LAST; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'setup-dot' + (i === step ? ' on' : '') + (i < step ? ' done' : '');
+    els.setupSteps.appendChild(dot);
+  }
+
+  els.setupBack.hidden = step <= 1;
+  els.setupSkip.hidden = step >= SETUP_LAST;
+
+  if (step === 2) {
+    els.setupLogin.disabled = loginBusy;
+    els.setupLoginState.textContent = loginBusy
+      ? 'Das Anmeldefenster ist offen – melde dich dort an.'
+      : (account.username ? 'Angemeldet als ' + account.username + '.' : '');
+    els.setupNext.replaceChildren(text(account.username ? 'Weiter ' : 'Ohne Anmeldung weiter '), icon('fa-arrow-right'));
+  } else if (step === 3) {
+    els.setupWho.textContent = account.username || 'unbekannt';
+    els.setupNext.replaceChildren(text('Weiter '), icon('fa-arrow-right'));
+  } else if (step === 4) {
+    renderSetupList();
+    els.setupNext.replaceChildren(text(users.length ? 'Weiter ' : 'Später eintragen '), icon('fa-arrow-right'));
+  } else if (step === SETUP_LAST) {
+    els.setupNext.replaceChildren(icon('fa-check'), text(' Fertig'));
+  } else {
+    els.setupNext.replaceChildren(text('Weiter '), icon('fa-arrow-right'));
+  }
+}
+
+function renderSetupList() {
+  els.setupList.replaceChildren();
+  if (!users.length) {
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Noch niemand eingetragen. Du kannst das auch später unter „Shows“ nachholen.';
+    els.setupList.appendChild(hint);
+    return;
+  }
+  for (const user of users) {
+    const chip = document.createElement('span');
+    chip.className = 'setup-chip';
+    chip.append(avatarFor(user), document.createTextNode(user.username));
+    const kill = document.createElement('button');
+    kill.type = 'button';
+    kill.title = 'Wieder entfernen';
+    kill.appendChild(icon('fa-xmark'));
+    kill.addEventListener('click', () => { removeUser(user.id); renderSetupList(); renderSetup(); });
+    chip.appendChild(kill);
+    els.setupList.appendChild(chip);
+  }
+}
+
+els.setupNext.addEventListener('click', async () => {
+  const step = setupState.step;
+  if (step === SETUP_LAST) { finishSetup(); return; }
+
+  // Schritt 2 fuehrt nur dann zur Bestaetigung, wenn wirklich jemand angemeldet ist
+  if (step === 2 && !account.username) { setupStep(4); return; }
+  setupStep(step + 1);
+});
+
+els.setupBack.addEventListener('click', () => {
+  const step = setupState.step;
+  // Schritt 3 gibt es ohne Anmeldung nicht - von 4 aus also gleich zurueck zu 2
+  if (step === 4 && !account.username) { setupStep(2); return; }
+  setupStep(step - 1);
+});
+
+els.setupSkip.addEventListener('click', () => {
+  // Ueberspringen heisst: fuer diesmal genug, nicht erledigt
+  closeSetup();
+});
+
+els.setupLogin.addEventListener('click', async () => {
+  const info = await doLogin();
+  // Nach erfolgreicher Anmeldung von selbst zur Bestaetigung weiterziehen
+  if (info && info.result === 'ok' && setupState.step === 2) setupStep(3);
+});
+
+els.setupForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const result = addUsers(els.setupInput.value, false);
+  if (result.added.length) els.setupInput.value = '';
+  else if (result.double.length) toast(result.double.length + ' waren schon dabei');
+  else if (els.setupInput.value.trim()) toast('Daraus konnte ich keinen Usernamen lesen');
+  renderSetupList();
+  renderSetup();
+  els.setupInput.focus();
+});
 
 /* ================= Start ================= */
 
+const REPO_FALLBACK = 'https://github.com/zqqqqx/whatnot-multistream';
+let appInfo = { version: '', repo: REPO_FALLBACK, packaged: false };
+
+if (window.wnms && window.wnms.info) {
+  window.wnms.info().then((info) => {
+    appInfo = Object.assign(appInfo, info || {});
+    els.aboutVersion.textContent = 'Version ' + (appInfo.version || '?')
+      + (appInfo.packaged ? '' : ' · aus dem Quelltext');
+    els.aboutHint.textContent = appInfo.packaged
+      ? 'Aktualisierungen kommen aus dem Release-Bereich des Projekts. Geladen wird nur auf Klick.'
+      : 'Im Quelltextbetrieb ist die Selbstaktualisierung abgeschaltet.';
+    renderAbout();
+  }).catch(() => {});
+}
+
 els.cols.value = settings.cols;
 renderViewAll();
+renderLensControls();
+els.lensPopKey.textContent = LENS_KEY_LABEL;
+els.meInput.value = settings.me || '';
+renderAccount();
 
 els.viewAll.addEventListener('click', () => applyViewAll(nextView(settings.view)));
-els.meInput.value = settings.me || '';
 
-// Eigener Username: nur fuer die Versand-Buendelung noetig. Gespeichert wird auf
-// Knopfdruck, mit Enter und beim Verlassen des Feldes - und es sagt Bescheid,
-// damit man nicht raetseln muss, ob es angekommen ist.
+// Eigener Username: wird beim Anmelden erkannt, laesst sich hier aber weiter
+// von Hand setzen - etwa wenn jemand die App ohne Anmeldung benutzt.
 let meStateTimer = null;
 
 function saveMe() {
   const value = els.meInput.value.trim().replace(/^@/, '');
-  const changed = value !== (settings.me || '');
+  if (value === (settings.me || '')) { flashMeState(value ? 'gespeichert' : 'leer – aus'); return; }
   settings.me = value;
   els.meInput.value = value;
-  store(SETTINGS_KEY, settings);
+  saveSettings();
   for (const tile of tiles.values()) renderLot(tile);
+  flashMeState(value ? 'gespeichert' : 'leer – aus');
+}
 
-  els.meState.textContent = value ? (changed ? 'gespeichert' : 'gespeichert') : 'leer – aus';
+function flashMeState(message) {
+  els.meState.textContent = message;
   els.meState.classList.add('on');
   clearTimeout(meStateTimer);
   meStateTimer = setTimeout(() => els.meState.classList.remove('on'), 2200);
@@ -2255,6 +3094,12 @@ renderUserList();
 updateCheckInfo();
 
 // Erste Runde, sobald der Helfer steht
-whenCheckerReady().then(() => checkAll());
+whenCheckerReady().then(() => {
+  if (locked) return;
+  if (settings.startCheck !== false) checkAll();
+});
 
-if (!users.length) openPanel();
+// Beim allerersten Start fuehrt der Assistent durch alles Noetige. Wer ihn
+// abgebrochen hat, landet wieder an der Stelle, an der er aufgehoert hat.
+if (!setupState.done) openSetup();
+else if (!users.length) openPanel();

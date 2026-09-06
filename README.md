@@ -7,6 +7,9 @@ werden (hochkant, 720×1280). Endet die Show, verschwindet die Kachel wieder.
 Ein Klick auf das Vergrößern-Symbol zeigt einen Stream groß in der Desktop-Ansicht – mit Shop,
 Produktliste und Gebots-Schaltflächen zum Mitbieten.
 
+Beim ersten Start führt ein kurzer Assistent durch Anmeldung und Streamerliste;
+danach läuft alles von allein.
+
 ## Installieren
 
 Im Ordner `dist` liegt **`Whatnot-Multistream-Setup-<version>.exe`**. Doppelklick,
@@ -129,6 +132,7 @@ Am unteren Rand jeder Kachel läuft eine schmale Zeile mit dem aktuellen Los:
 | --- | --- |
 | **Titel** | Das Los, das gerade läuft – inklusive Losnummer, z. B. *Amazon A/B Ware #78*. |
 | **Betrag** | Was das **nächste** Gebot kosten würde. Liegst du selbst vorn, wird der Betrag grün. |
+| **inkl. Versand** | Klein darunter: was das Los mit Versand zusammen kostet. Erscheint nur, wenn Whatnot beide Beträge wirklich nennt – geschätzt wird nichts. Läuft der Versand bei diesem Verkäufer heute schon, steht dort das Gebot selbst, weil kein zweiter Versand mehr dazukommt. Abschaltbar unter *Einstellungen → Anzeige*. |
 | **Countdown** | Restzeit bis zum Hammer. Unter zehn Sekunden wird die Anzeige rot und pocht. |
 | **LKW-Symbol** | Bei diesem Verkäufer läuft der Versand heute schon (siehe unten). |
 
@@ -154,15 +158,83 @@ auf diese Kachel ein LKW-Symbol (mit Anzahl, wenn es mehrere Lose waren). Der
 Hinweistext nennt auch die Versandkosten des Verkäufers, so wie die Show sie
 angibt. Am nächsten Tag verfällt der Merker von selbst.
 
-Damit die App erkennt, dass **du** den Zuschlag bekommen hast, trägst du unter
-*Shows* deinen eigenen Whatnot-Usernamen ein – mit *Speichern*, Eingabetaste oder
-einfach durch Verlassen des Feldes; eine kurze Rückmeldung bestätigt es. Ohne
-diesen Eintrag lässt sich der Merker im Rechtsklick-Menü der Kachel von Hand
-setzen und wieder entfernen.
+Damit die App erkennt, dass **du** den Zuschlag bekommen hast, braucht sie deinen
+Whatnot-Usernamen – **eintippen musst du ihn nicht**: Er wird beim Anmelden aus
+der Seite gelesen und bleibt gespeichert (siehe *Konto*). Unter *Shows* steht er
+dann schon da und lässt sich bei Bedarf überschreiben. Ohne Anmeldung lässt sich
+der Merker im Rechtsklick-Menü der Kachel von Hand setzen und wieder entfernen.
+
+## Konto: Anmelden und Namenserkennung
+
+Das Anmelde-Symbol öffnet ein eigenes Fenster direkt bei Whatnot – **dein Passwort
+sieht die App nie**. Sie sieht der Seite nur zu und wartet, bis dort ein
+angemeldeter Nutzer auftaucht; dann meldet das Fenster kurz *Angemeldet als …*,
+schließt sich von selbst, und **alle offenen Streams werden neu geladen**, damit
+sie sofort mit dem neuen Konto laufen. Brichst du ab oder schließt das Fenster,
+passiert nichts davon – dann wird auch nichts neu geladen.
+
+Erkannt wird der Name an der Stelle, an der Whatnot ihn selbst in jede Seite legt
+(`window.__whatnot__.loggerContext.usr.name`), ersatzweise an den
+Analyse-Merkmalen im `localStorage`. Das kostet keine eigene Abfrage: Auch bei der
+regulären Live-Prüfung fällt der Name nebenbei ab, sodass ein Kontowechsel im
+Hintergrund von allein nachgezogen wird. Der Stand steht unter
+*Einstellungen → Konto*.
+
+## Ausgeschlossene Konten
+
+Bestimmte Whatnot-Konten können von der Nutzung ausgeschlossen werden. Die Liste
+dafür (`banned-users.json`) enthält **keine Klarnamen**, sondern nur den
+SHA-256-Abdruck des normalisierten Usernamens – wer die Datei in die Hände
+bekommt, erfährt daraus nicht, um wen es geht. Normalisiert wird immer gleich:
+Leerraum weg, führendes `@` weg, alles klein; `  @Foo ` und `foo` ergeben also
+denselben Abdruck. Einen Abdruck bildet `node tools/ban-hash.js <name>`.
+
+Geprüft wird nach jeder erkannten Anmeldung **und** bei jeder Live-Prüfung. Ein
+Treffer legt die App still: keine Kacheln, keine Prüfung, ein Hinweis, dass dieses
+Konto nicht zur Nutzung berechtigt ist. Der Vermerk steht in der Ablage, greift
+also beim nächsten Start sofort wieder – abmelden, neu starten oder sich erneut
+anmelden hilft nicht. Gelöst wird er nur, wenn ein **anderes**, nicht gesperrtes
+Konto erkannt wird.
+
+Woher die Liste kommt, steckt allein in `readSources()` in `bans.js`. Soll sie
+später aus dem Netz kommen, wird dort eine weitere Quelle eingehängt; der Rest der
+App kennt nur `isBanned()` und merkt davon nichts.
+
+## Einrichtung beim ersten Start
+
+Beim allerersten Start führt ein Assistent der Reihe nach durch das, was einmal zu
+tun ist: kurze Erklärung, Anmeldung, Bestätigung des erkannten Namens, Streamer
+eintragen, das Wichtigste zur Bedienung. Der Fortschritt wird nach jedem Schritt
+gemerkt – wer abbricht, macht beim nächsten Start an derselben Stelle weiter, wer
+durch ist, sieht ihn nie wieder. Über *Einstellungen → Einrichtung* lässt er sich
+jederzeit erneut starten.
+
+Wer die App schon benutzt hat, bekommt ihn nach einer Aktualisierung **nicht**
+vorgesetzt: Eine vorhandene Streamerliste gilt als erledigte Einrichtung.
+
+## Einstellungen
+
+Das Schieberegler-Symbol oben öffnet drei Reiter:
+
+| Reiter | Inhalt |
+| --- | --- |
+| **Allgemein** | Verhalten beim Start (sofort prüfen, Ton der letzten Sitzung wieder aufnehmen), Anzeige (Spaltenzahl, Ansicht der Kacheln, Los-Leiste, Preis inklusive Versand), Größe und Vergrößerung der Lupe, Assistent erneut starten. |
+| **Konto** | Erkannter Username, Anmeldestatus, anmelden bzw. Konto wechseln. |
+| **Updates & Über** | Installierte Version, *Nach Updates suchen* mit verständlicher Antwort, Herunterladen bzw. Neustarten, Link zum Projekt. |
+
+Spaltenzahl und Kachelansicht stehen zugleich in der Kopfleiste – beide Wege
+zeigen immer denselben Stand.
 
 ## Bedienung
 
-Die Kopfleiste hält nur noch das Nötigste: links der Zähler, rechts Symbole.
+Die Kopfleiste **ist zugleich die Titelleiste**: Die Windows-Leiste mit ihren drei
+Knöpfen ist weg, gezogen wird an der App-Leiste selbst, Doppelklick darauf
+maximiert und stellt wieder her. Rechts außen sitzen Minimieren,
+Maximieren/Wiederherstellen und Schließen im Stil der übrigen Oberfläche; das
+mittlere Symbol zeigt, was der Klick tut. An den Fensterkanten lässt sich weiter
+ganz normal ziehen.
+
+Links der Zähler, dazwischen die Symbole:
 
 | Element | Funktion |
 | --- | --- |
@@ -178,23 +250,25 @@ breiteres Layout mit schmalem Chat umschaltet.
 | **Sprechblase** | Schaltet **alle** Kacheln gemeinsam im Kreis: ganze Seite → ohne Chat → nur Video. Legt zugleich fest, womit neu auftauchende Kacheln starten. |
 | **Sendeturm** | Prüfung sofort starten, statt auf das 2-Minuten-Intervall zu warten. |
 | **Lautsprecher / Kreispfeile** | Alle stummschalten bzw. alle Kacheln neu laden. |
-| **Anmelde-Symbol** | Öffnet Whatnot in einem Extra-Fenster. Einmal anmelden – die Anmeldung gilt für alle Kacheln und bleibt gespeichert. |
+| **Anmelde-Symbol** | Öffnet das Anmeldefenster. Nach erfolgreicher Anmeldung schließt es sich von selbst und alle Streams werden neu geladen (siehe *Konto*). Leuchtet gelb, solange ein Konto erkannt ist. |
+| **Schieberegler** | Einstellungen: Allgemein, Konto, Updates & Über. |
 
 Je Kachel, in der Kopfzeile (erscheint beim Überfahren):
 
 | Symbol | Funktion |
 | --- | --- |
 | **Lautsprecher** | Ton läuft immer nur auf einer Kachel – Klick schaltet dorthin um. |
-| **Sprechblase** | Schaltet die Ansicht im Kreis: **ganze Seite** → **ohne Chat** (Shop, Preis und Gebots-Schaltflächen bleiben) → **nur Video**. Das Rechtsklick-Menü hat beide Schritte auch einzeln. |
+| **Sprechblase** | Schaltet die Ansicht im Kreis: **ganze Seite** → **ohne Chat** (Shop, Preis und Gebots-Schaltflächen bleiben) → **nur Video**. Das Rechtsklick-Menü hat beide Schritte auch einzeln. Gilt nur fürs Raster – in der Großansicht ist der Knopf deshalb ausgeblendet. |
+| **Lupe** | Nur in der Großansicht: erklärt, auf welcher Taste die Lupe liegt, und stellt Glasgröße und Vergrößerung ein. |
 | **Pfeil aus dem Kasten** | Diese Show im richtigen Browser öffnen. |
-| **Vergrößern / Verkleinern** | Fokus: Kachel füllt das Fenster in **Originalgröße und Desktop-Layout** – Shop, Produkte und Gebote sind bedienbar. Beim Vergrößern läuft der Ton dieser Show, beim Verkleinern wieder der Zustand von vorher. Verkleinern geht auch mit Esc. |
+| **Vergrößern / Verkleinern** | Großansicht: Kachel füllt das Fenster in **Originalgröße und Desktop-Layout** – Shop, Produkte und Gebote sind bedienbar. Dort sind Chat und Oberfläche **immer da**, unabhängig davon, was im Raster eingestellt ist; beim Verkleinern kommt genau der Rasterzustand zurück (Chat im Raster ausgeblendet → in der Großansicht sichtbar → danach wieder ausgeblendet). Beim Vergrößern läuft der Ton dieser Show, beim Verkleinern wieder der Zustand von vorher. Verkleinern geht auch mit Esc. |
 | **Kreispfeil** | Show neu laden. |
 
 Weitere Griffe:
 
 | Aktion | Funktion |
 | --- | --- |
-| **Strg halten (im großen Modus)** | Lupe: ein Glas folgt dem Zeiger und zeigt den Ausschnitt darunter vergrößert. **Mausrad** ändert die Größe des Glases, **Umschalt + Mausrad** die Vergrößerung (1,5× bis 8×). Loslassen blendet die Lupe wieder aus. |
+| **Alt halten (in der Großansicht)** | Lupe: ein Glas folgt dem Zeiger und zeigt den Ausschnitt darunter vergrößert. Loslassen blendet sie wieder aus. Größe und Vergrößerung stehen in den Einstellungen und im Lupen-Knopf der Großansicht – das Mausrad steuert sie nicht mehr. |
 | **Rechtsklick auf eine Kachel** | Menü mit *Groß anzeigen*, *Nur Video zeigen*, *Im Browser öffnen*, *Versand läuft heute schon*, *Neu laden*, *User verstecken* und *User entfernen*. |
 | **Rechtsklick halten und ziehen** | Kacheln umsortieren. Die Streams laufen dabei weiter – die Reihenfolge wird nur über CSS gesetzt, die Kacheln werden nicht neu geladen. |
 
@@ -205,6 +279,12 @@ versteckte Streamer live sind).
 
 Cookie-Banner werden in jeder Kachel automatisch mit „Nur notwendige" geschlossen;
 dafür gibt es bewusst keinen Schalter mehr.
+
+Ebenfalls automatisch weg ist Whatnots Einblendung *„Du nimmst jetzt an … Stream
+teil"*: Bei einer Wand aus Kacheln erscheint sie reihum in jeder einzelnen und
+verdeckt jedes Mal ein Stück Bild. Ausgeblendet wird **nur diese eine Meldung**,
+erkannt am Wortlaut (deutsch und englisch) – Fehlermeldungen, Gebotshinweise und
+alles andere bleiben stehen.
 
 ### Wo die Liste liegt
 
@@ -228,14 +308,27 @@ Darin steht alles, was du einstellst, und es steht beim nächsten Start wieder d
 | **Reihenfolge der Kacheln** | die Reihenfolge der Liste – beim Umsortieren per Rechtsklick-Ziehen mitgeschrieben |
 | **Ansicht je Kachel** (ganze Seite / ohne Chat / nur Video) | je Streamer, gilt auch nach einem Neuaufbau der Kachel |
 | Ansicht für alle, Spaltenzahl, eigener Username | allgemeine Einstellungen |
+| **Erkanntes Konto und Sperrvermerk** | schreibt der Hauptprozess, nicht das Fenster |
+| **Fortschritt der Einrichtung** | Schritt und ob sie abgeschlossen ist |
+| **Alle Schalter der Einstellungen** | Startverhalten, Los-Leiste, Preis inklusive Versand |
 | **Welcher Stream Ton hat** | wird wieder aufgenommen, sobald die Kachel da ist |
-| **Größe und Vergrößerung der Lupe** | so, wie du sie zuletzt gedreht hast |
+| **Größe und Vergrößerung der Lupe** | so, wie du sie zuletzt eingestellt hast |
 | **Fenstergröße, -lage und Vollbild** | wird beim Verschieben gemerkt |
 | Versand-Merker | je Streamer, gilt für den laufenden Tag |
 
 Ein vorangestelltes Byte-Order-Mark – etwa weil die Datei mit einem Editor
 angefasst wurde – wird beim Lesen abgestreift, statt die Ablage fälschlich für
 beschädigt zu halten.
+
+Fenster und Hauptprozess schreiben in dieselbe Datei, aber jeder nur **seine
+eigenen** Einträge: Das Fenster gibt ausschließlich das weiter, was es selbst
+geändert hat. Gäbe es stattdessen jedes Mal seine ganze Abschrift vom
+Programmstart heraus, schriebe es Fenstergröße, erkanntes Konto und Sperrvermerk
+auf den Stand von vorhin zurück.
+
+Die gemerkte Fensterlage wird beim Start nur übernommen, wenn dort auch wirklich
+ein Bildschirm ist – sonst startet die App unsichtbar, etwa weil der zweite
+Monitor abgesteckt wurde.
 
 Die App läuft außerdem nur noch einmal gleichzeitig – ein zweiter Start holt das
 vorhandene Fenster nach vorn, statt sich mit ihm um dieselbe Datei zu streiten.
@@ -283,10 +376,19 @@ App-Fenster aus nicht einfach vergrößert nachzeichnen. Die Lupe fotografiert
 deshalb zehnmal pro Sekunde genau den Ausschnitt unter dem Glas ab
 (`capturePage` mit Rechteck, nicht die ganze Seite) und setzt ihn vergrößert ein.
 
+Der wunde Punkt einer gehaltenen Taste ist das **Loslassen**: Wandert der
+Tastaturfokus dazwischen weg – von der Kachelseite ins App-Fenster, vom Fenster in
+ein anderes Programm –, kommt nie ein `keyup` an, und die Lupe bliebe stehen.
+Dagegen stehen drei Dinge: Kachelseite und App-Fenster ziehen den Tastenzustand
+bei **jedem** Ereignis nach (`getModifierState`) statt nur beim `keyup`; jeder
+Fokusverlust beendet sie; und ein Wächter prüft im Takt, ob die Voraussetzungen
+überhaupt noch stimmen – Kachel vorhanden, groß angezeigt, Fenster im
+Vordergrund. Fällt eine davon weg, ist sofort Schluss.
+
 ## Grenzen
 
 - **Ohne Login** zeigt Whatnot in jeder Kachel ein Anmelde-Fenster über dem Stream.
-  Einmal über das Anmelde-Symbol oben rechts anmelden, dann ist es weg.
+  Einmal über das Anmelde-Symbol oben anmelden, dann ist es weg.
 - **20 gleichzeitige Streams sind viel Last** (jede Kachel ist ein eigener
   Browser-Prozess mit laufendem Video). Bei ruckelnden Bildern: Streamer
   verstecken – versteckte Kacheln laufen gar nicht erst mit.

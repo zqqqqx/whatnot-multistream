@@ -36,16 +36,26 @@ body {
 
 /* ---------- Topbar ---------- */
 
+/* Die Kopfleiste ist zugleich die Titelleiste: Der Systemrahmen ist weg
+   (frame: false), gezogen wird an dieser Flaeche, Doppelklick maximiert.
+   Alles Bedienbare darin muss ausdruecklich no-drag sein, sonst liesse es sich
+   nicht mehr anklicken. */
 .topbar {
   flex: none;
   height: var(--topbar-h);
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px;
+  padding: 0 0 0 12px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
 }
+
+.topbar button,
+.topbar select,
+.topbar input,
+.topbar label { -webkit-app-region: no-drag; }
 
 .brand {
   display: flex;
@@ -396,10 +406,10 @@ webview {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 23px;
-  padding: 0 7px;
+  min-height: 23px;
+  padding: 2px 7px;
   font-size: 11px;
-  line-height: 1;
+  line-height: 1.15;
   pointer-events: none;
   background: linear-gradient(to top, rgba(8, 10, 14, .95), rgba(8, 10, 14, .7) 62%, rgba(8, 10, 14, 0));
 }
@@ -413,11 +423,33 @@ webview {
   color: #dde1e9;
 }
 
-.lot-bid {
+/* Preisblock: oben, was das naechste Gebot kostet - darunter kleiner und
+   zurueckhaltender, was mit Versand daraus wird. */
+.lot-price {
   flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  line-height: 1.1;
+}
+
+.lot-bid {
   font-weight: 700;
   color: var(--accent);
 }
+
+.lot-total {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: auto;   /* nur wegen des Hinweistextes */
+  cursor: help;
+}
+
+/* Der Versand ist bei diesem Verkaeufer heute schon bezahlt */
+.lot-total.bundled { color: rgba(255, 212, 0, .72); }
 
 /* Du liegst vorn */
 .tile-lot.mine .lot-bid { color: #74e08a; }
@@ -1138,3 +1170,433 @@ webview.checker {
   .pulse-core { animation: none; }
   .pulse-ring:nth-of-type(1) { opacity: .45; }
 }
+
+/* ---------- Fensterknöpfe ----------
+   Ersetzen die Windows-Leiste. Maße und Anordnung sind dem System
+   nachempfunden (46 px breit, volle Leistenhöhe, Schließen rot beim
+   Überfahren), Farben und Rundung folgen dem übrigen Aufbau. */
+.win-controls {
+  display: flex;
+  align-self: stretch;
+  margin-left: 8px;
+}
+
+.win-btn {
+  -webkit-app-region: no-drag;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.win-btn:hover { background: var(--panel-2); color: var(--text); }
+.win-btn.danger:hover { background: #e03a3a; color: #fff; }
+
+.win-btn svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+  shape-rendering: geometricPrecision;
+}
+
+/* Das Symbol sagt, was der Klick tut: Kasten = maximieren,
+   zwei versetzte Kästen = zurück in die alte Größe */
+.win-btn .ic-restore { display: none; }
+body.is-maximized .win-btn .ic-max { display: none; }
+body.is-maximized .win-btn .ic-restore { display: block; }
+
+/* ---------- Lupen-Erklärung ---------- */
+
+.lens-pop {
+  position: fixed;
+  z-index: 70;
+  width: 268px;
+  padding: 12px 14px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .55);
+}
+.lens-pop[hidden] { display: none; }
+.lens-pop p { margin: 8px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+.lens-pop-key {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+}
+
+.lens-pop-row {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+.lens-pop-row label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.lens-pop-row output { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Taste als Tastenkappe */
+kbd {
+  display: inline-block;
+  min-width: 34px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-bottom-width: 3px;
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: .3px;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+}
+
+/* ---------- Einstellungen ---------- */
+
+.settings-card { width: min(660px, 100%); }
+
+.tabs {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.tab:hover { background: var(--panel-2); color: var(--text); }
+.tab.on { background: var(--panel-2); color: var(--text); }
+.tab.on i { color: var(--accent); }
+.tab i { font-size: 12px; }
+
+.tab-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 2px 0;
+}
+.tab-body::-webkit-scrollbar { width: 8px; }
+.tab-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.tab-page h3 {
+  margin: 16px 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+.tab-page h3:first-child { margin-top: 6px; }
+
+/* Schalter mit Erklärung darunter */
+.opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  margin-bottom: 5px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.opt:hover { background: var(--panel-2); border-color: var(--border); }
+.opt input { margin-top: 2px; accent-color: var(--accent); }
+.opt span { display: grid; gap: 3px; }
+.opt b { font-weight: 600; font-size: 12.5px; }
+.opt small { color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  margin-bottom: 5px;
+  border-radius: 9px;
+}
+.opt-row:hover { background: var(--panel-2); }
+.opt-row > label,
+.opt-row > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text);
+  font-size: 12.5px;
+}
+.opt-row > span { color: var(--muted); }
+.opt-row output { color: var(--muted); font-variant-numeric: tabular-nums; }
+.opt-row input[type="range"] { flex: none; width: 190px; }
+.opt-row button { flex: none; }
+
+.field {
+  flex: none;
+  min-width: 150px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.field option { background: var(--panel); }
+
+.opt-hint {
+  margin: 2px 10px 12px;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.opt-hint kbd { margin: 0 2px; }
+
+/* Konto-Karte, auch im „Über“-Reiter benutzt */
+.acc-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin: 6px 0 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+
+.acc-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 16px;
+}
+.acc-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.acc-main { display: grid; gap: 3px; min-width: 0; }
+.acc-main strong { font-size: 14px; }
+.acc-main span { color: var(--muted); font-size: 11.5px; }
+
+.acc-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--border);
+}
+.acc-dot.on { background: #74e08a; box-shadow: 0 0 10px rgba(116, 224, 138, .5); }
+
+/* ---------- Einrichtungsassistent ---------- */
+
+.setup {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 8, 12, .88);
+}
+.setup[hidden] { display: none; }
+
+.setup-card {
+  width: min(560px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 26px 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 26px 60px rgba(0, 0, 0, .65);
+}
+
+.setup-steps {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.setup-dot {
+  width: 26px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background .15s;
+}
+.setup-dot.done { background: rgba(255, 212, 0, .45); }
+.setup-dot.on { background: var(--accent); }
+
+.setup-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  text-align: center;
+}
+.setup-page::-webkit-scrollbar { width: 8px; }
+.setup-page::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.setup-page h2 { margin: 0 0 10px; font-size: 19px; }
+.setup-page p { margin: 0 0 12px; color: var(--muted); line-height: 1.55; }
+.setup-page .hint { font-size: 12px; }
+
+.setup-icon {
+  display: grid;
+  place-items: center;
+  height: 62px;
+  margin-bottom: 12px;
+  color: var(--accent);
+  font-size: 34px;
+}
+.setup-icon.ok { color: #74e08a; }
+
+.logo.big {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  font-size: 24px;
+}
+
+button.big { padding: 11px 18px; font-size: 13.5px; }
+
+.setup-page .panel-add { margin: 14px 0 10px; }
+
+.setup-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.setup-list .hint { width: 100%; margin: 0; }
+
+.setup-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 5px 4px 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.setup-chip .avatar { width: 22px; height: 22px; font-size: 10px; }
+.setup-chip button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.setup-chip button:hover { background: var(--danger); color: #fff; }
+
+.setup-tips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.setup-tips li {
+  display: flex;
+  gap: 11px;
+  padding: 9px 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border);
+}
+.setup-tips li:last-child { border-bottom: none; }
+.setup-tips i { flex: none; width: 17px; margin-top: 2px; color: var(--accent); text-align: center; }
+.setup-tips span { flex: 1 1 auto; min-width: 0; }
+.setup-tips kbd { margin: 0 2px; }
+.setup-tips b { color: var(--text); }
+
+.setup-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Gesperrtes Konto ----------
+   Liegt über allem, auch über Panels und Assistent, und lässt keinen Weg
+   daran vorbei. */
+.locked {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 8, 12, .97);
+}
+.locked[hidden] { display: none; }
+
+.locked-card {
+  width: min(430px, 100%);
+  padding: 30px 28px 24px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.locked-card > i { font-size: 34px; color: var(--danger); }
+.locked-card h2 { margin: 14px 0 10px; font-size: 17px; line-height: 1.4; }
+.locked-card p { margin: 0 0 8px; color: var(--muted); }
+.locked-card .hint { font-size: 12px; }
+.locked-card button { margin-top: 16px; }

@@ -11,6 +11,8 @@
 </head>
 <body>
 
+  <!-- Zugleich Titelleiste: der Systemrahmen ist weg, gezogen wird an dieser
+       Leiste (-webkit-app-region: drag), Doppelklick maximiert. -->
   <header class="topbar">
     <div class="brand">
       <span class="logo">W</span>
@@ -58,10 +60,29 @@
     <button id="loginBtn" class="icon" title="Bei Whatnot anmelden">
       <i class="fa-solid fa-right-to-bracket"></i>
     </button>
+    <button id="settingsBtn" class="icon" title="Einstellungen">
+      <i class="fa-solid fa-sliders"></i>
+    </button>
 
     <button id="showsBtn" class="primary" title="Streamer verwalten">
       <i class="fa-solid fa-users"></i> Shows
     </button>
+
+    <!-- Eigene Fensterknöpfe anstelle der Windows-Leiste -->
+    <div class="win-controls">
+      <button id="winMin" class="win-btn" title="Minimieren" aria-label="Minimieren">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" /></svg>
+      </button>
+      <button id="winMax" class="win-btn" title="Maximieren" aria-label="Maximieren">
+        <svg class="ic-max" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" /></svg>
+        <svg class="ic-restore" viewBox="0 0 10 10" aria-hidden="true">
+          <rect x="0.5" y="2.5" width="7" height="7" /><path d="M2.5 2.5V0.5h7v7h-2" />
+        </svg>
+      </button>
+      <button id="winClose" class="win-btn danger" title="Schließen" aria-label="Schließen">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 0l10 10M10 0L0 10" /></svg>
+      </button>
+    </div>
   </header>
 
   <main id="stage">
@@ -84,8 +105,7 @@
         <p class="hint">
           <strong>Rechtsklick</strong> auf eine Kachel öffnet das Menü,
           <strong>Rechtsklick halten und ziehen</strong> ordnet die Kacheln um.
-          Im großen Modus zeigt <strong>Strg halten</strong> eine Lupe, die dem Zeiger folgt –
-          Mausrad ändert ihre Größe, <strong>Umschalt + Mausrad</strong> die Vergrößerung.
+          In der Großansicht zeigt <strong>Alt halten</strong> eine Lupe, die dem Zeiger folgt.
         </p>
       </div>
 
@@ -129,6 +149,20 @@
     <div id="lens" class="lens" hidden>
       <img id="lensImage" alt="">
       <span class="lens-label" id="lensLabel"></span>
+    </div>
+
+    <!-- Erklärung zur Lupe, hängt am Lupenknopf der Großansicht -->
+    <div id="lensPop" class="lens-pop" hidden>
+      <div class="lens-pop-key"><kbd id="lensPopKey">Alt</kbd> <span>Lupe</span></div>
+      <p>Taste gedrückt halten, um den Bereich unter dem Zeiger vergrößert zu sehen. Loslassen blendet sie wieder aus.</p>
+      <div class="lens-pop-row">
+        <label>Glas <output id="lensPopSizeOut"></output></label>
+        <input id="lensPopSize" type="range" min="140" max="620" step="20">
+      </div>
+      <div class="lens-pop-row">
+        <label>Vergrößerung <output id="lensPopMagOut"></output></label>
+        <input id="lensPopMag" type="range" min="1.5" max="8" step="0.5">
+      </div>
     </div>
 
     <div id="tileMenu" class="tile-menu" hidden>
@@ -184,14 +218,14 @@
           <i class="fa-solid fa-truck-fast"></i>
           <div>
             <strong>Dein Whatnot-Username</strong>
-            <span>Damit erkennt die App deine eigenen Zuschläge und merkt sich,
-                  bei wem der Versand heute schon läuft.</span>
+            <span>Wird beim Anmelden automatisch erkannt. Damit findet die App deine eigenen
+                  Zuschläge und merkt sich, bei wem der Versand heute schon läuft.</span>
           </div>
         </div>
         <div class="me-row">
           <div class="add-field">
             <i class="fa-solid fa-at"></i>
-            <input id="meInput" type="text" maxlength="40" placeholder="dein-name" autocomplete="off">
+            <input id="meInput" type="text" maxlength="40" placeholder="wird beim Anmelden erkannt" autocomplete="off">
           </div>
           <button id="meSave" type="button" class="ghost"><i class="fa-solid fa-check"></i> Speichern</button>
           <span id="meState" class="me-state"></span>
@@ -205,6 +239,220 @@
         </button>
         <button id="checkNowBtn" class="ghost"><i class="fa-solid fa-tower-broadcast"></i> Jetzt prüfen</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Allgemeine Einstellungen -->
+  <div id="settingsPanel" class="panel" hidden>
+    <div class="panel-card settings-card">
+      <div class="panel-head">
+        <h2><i class="fa-solid fa-sliders"></i> Einstellungen</h2>
+        <button id="settingsClose" class="icon" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="tabs" id="settingsTabs">
+        <button class="tab on" data-tab="general"><i class="fa-solid fa-gear"></i> Allgemein</button>
+        <button class="tab" data-tab="account"><i class="fa-solid fa-user"></i> Konto</button>
+        <button class="tab" data-tab="about"><i class="fa-solid fa-circle-info"></i> Updates &amp; Über</button>
+      </div>
+
+      <div class="tab-body">
+
+        <section class="tab-page" data-page="general">
+          <h3>Start</h3>
+          <label class="opt">
+            <input id="optStartCheck" type="checkbox">
+            <span><b>Beim Start sofort prüfen, wer live ist</b>
+              <small>Aus: erst die reguläre Prüfung nach zwei Minuten.</small></span>
+          </label>
+          <label class="opt">
+            <input id="optRestoreSound" type="checkbox">
+            <span><b>Ton der letzten Sitzung wieder aufnehmen</b>
+              <small>Der zuletzt hörbare Stream bekommt beim Start wieder den Ton.</small></span>
+          </label>
+
+          <h3>Anzeige</h3>
+          <div class="opt-row">
+            <label for="optCols">Spalten im Raster</label>
+            <select id="optCols" class="field">
+              <option value="auto">Automatisch</option>
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            </select>
+          </div>
+          <div class="opt-row">
+            <label for="optView">Kacheln zeigen</label>
+            <select id="optView" class="field">
+              <option value="full">Ganze Seite</option>
+              <option value="nochat">Ohne Chat</option>
+              <option value="video">Nur Video</option>
+            </select>
+          </div>
+          <label class="opt">
+            <input id="optShowLot" type="checkbox">
+            <span><b>Los-Leiste in den Kacheln</b>
+              <small>Titel, nächstes Gebot und Restzeit am unteren Kachelrand.</small></span>
+          </label>
+          <label class="opt">
+            <input id="optShowTotal" type="checkbox">
+            <span><b>Preis inklusive Versand anzeigen</b>
+              <small>Klein unter dem Gebot. Nur wenn Whatnot die Versandkosten wirklich nennt.</small></span>
+          </label>
+
+          <h3>Lupe</h3>
+          <p class="opt-hint">
+            In der Großansicht <kbd id="lensKeyHint">Alt</kbd> gedrückt halten. Das Mausrad steuert die Lupe
+            nicht mehr – Größe und Vergrößerung stehen hier.
+          </p>
+          <div class="opt-row">
+            <label for="optLensSize">Größe des Glases <output id="optLensSizeOut"></output></label>
+            <input id="optLensSize" type="range" min="140" max="620" step="20">
+          </div>
+          <div class="opt-row">
+            <label for="optLensMag">Vergrößerung <output id="optLensMagOut"></output></label>
+            <input id="optLensMag" type="range" min="1.5" max="8" step="0.5">
+          </div>
+
+          <h3>Einrichtung</h3>
+          <div class="opt-row">
+            <span>Der Assistent führt noch einmal durch Anmeldung und Shows.</span>
+            <button id="optSetupAgain" class="ghost"><i class="fa-solid fa-wand-magic-sparkles"></i> Setup erneut starten</button>
+          </div>
+        </section>
+
+        <section class="tab-page" data-page="account" hidden>
+          <div class="acc-card">
+            <div class="acc-avatar" id="accAvatar"><i class="fa-solid fa-user"></i></div>
+            <div class="acc-main">
+              <strong id="accName">Nicht angemeldet</strong>
+              <span id="accState">Melde dich an, damit die Streams dich kennen.</span>
+            </div>
+            <span class="acc-dot" id="accDot"></span>
+          </div>
+          <div class="opt-row">
+            <span>Anmelden oder auf ein anderes Konto wechseln. Danach werden alle offenen Streams neu geladen.</span>
+            <button id="accLogin" class="primary"><i class="fa-solid fa-right-to-bracket"></i> <span id="accLoginLabel">Anmelden</span></button>
+          </div>
+          <p class="opt-hint">
+            Der Name wird beim Anmelden aus der Whatnot-Seite gelesen und hier gespeichert –
+            eingetippt werden muss er nicht. Passwörter sieht die App nie: Die Anmeldung
+            läuft in einem eigenen Fenster direkt bei Whatnot.
+          </p>
+        </section>
+
+        <section class="tab-page" data-page="about" hidden>
+          <div class="acc-card">
+            <div class="acc-avatar"><span class="logo">W</span></div>
+            <div class="acc-main">
+              <strong>Whatnot Multistream</strong>
+              <span id="aboutVersion">Version …</span>
+            </div>
+          </div>
+          <div class="opt-row">
+            <span id="updateResult">Noch nicht nachgesehen.</span>
+            <button id="updateCheckBtn" class="ghost"><i class="fa-solid fa-arrows-rotate"></i> Nach Updates suchen</button>
+          </div>
+          <div class="opt-row" id="updateActionRow" hidden>
+            <span id="updateActionText"></span>
+            <button id="updateActionBtn" class="primary"></button>
+          </div>
+          <div class="opt-row">
+            <span>Quelltext, Fehler melden und alle Fassungen</span>
+            <button id="repoBtn" class="ghost"><i class="fa-solid fa-code-branch"></i> GitHub</button>
+          </div>
+          <p class="opt-hint" id="aboutHint"></p>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Einrichtung beim ersten Start -->
+  <div id="setup" class="setup" hidden>
+    <div class="setup-card">
+      <div class="setup-steps" id="setupSteps"></div>
+
+      <div class="setup-page" data-step="1">
+        <div class="setup-icon"><span class="logo big">W</span></div>
+        <h2>Willkommen bei Multistream</h2>
+        <p>
+          Diese App zeigt mehrere Whatnot-Shows nebeneinander in einem Fenster. Du trägst
+          einmal ein, welche Streamer dich interessieren – laufen sie los, erscheinen sie
+          automatisch als Kachel und verschwinden wieder, wenn die Show endet.
+        </p>
+        <p class="hint">Ein paar kurze Schritte, dann läuft es. Abbrechen kannst du jederzeit – beim nächsten Start geht es an derselben Stelle weiter.</p>
+      </div>
+
+      <div class="setup-page" data-step="2" hidden>
+        <div class="setup-icon"><i class="fa-solid fa-right-to-bracket"></i></div>
+        <h2>Bei Whatnot anmelden</h2>
+        <p>
+          Ohne Anmeldung zeigt Whatnot nur ein Vorschaubild statt der Show. Die Anmeldung
+          läuft in einem eigenen Fenster direkt bei Whatnot – die App bekommt dein Passwort nie zu sehen.
+        </p>
+        <button id="setupLogin" class="primary big"><i class="fa-solid fa-right-to-bracket"></i> Anmeldefenster öffnen</button>
+        <p class="hint" id="setupLoginState"></p>
+      </div>
+
+      <div class="setup-page" data-step="3" hidden>
+        <div class="setup-icon ok"><i class="fa-solid fa-circle-check"></i></div>
+        <h2>Angemeldet</h2>
+        <p>Erkannt als <strong id="setupWho">…</strong>. Den Namen braucht die App, um deine eigenen
+           Zuschläge zu erkennen – daran hängt der Hinweis, bei wem der Versand für heute schon läuft.</p>
+        <p class="hint">Meldest du dich später mit einem anderen Konto an, zieht die App den Namen automatisch nach.</p>
+      </div>
+
+      <div class="setup-page" data-step="4" hidden>
+        <div class="setup-icon"><i class="fa-solid fa-users"></i></div>
+        <h2>Wen willst du sehen?</h2>
+        <p>Whatnot-Usernamen eintragen – mehrere mit Komma getrennt. Ganze Profil-Links gehen auch.</p>
+        <form id="setupForm" class="panel-add" autocomplete="off">
+          <div class="add-field">
+            <i class="fa-solid fa-at"></i>
+            <input id="setupInput" type="text" maxlength="800" placeholder="voltico, emd_livedeals, soleva7 …">
+          </div>
+          <button type="submit" class="primary"><i class="fa-solid fa-plus"></i> Hinzufügen</button>
+        </form>
+        <div id="setupList" class="setup-list"></div>
+      </div>
+
+      <div class="setup-page" data-step="5" hidden>
+        <div class="setup-icon"><i class="fa-solid fa-lightbulb"></i></div>
+        <h2>Das Wichtigste in Kürze</h2>
+        <ul class="setup-tips">
+          <li><i class="fa-solid fa-expand"></i>
+            <span><b>Groß anzeigen</b> – über das Symbol in der Kachelleiste oder das Rechtsklick-Menü.
+                  Nur in der Großansicht lässt sich bieten.</span></li>
+          <li><i class="fa-solid fa-magnifying-glass"></i>
+            <span><b>Lupe</b> – in der Großansicht <kbd>Alt</kbd> halten, um Kleingedrucktes zu lesen.</span></li>
+          <li><i class="fa-solid fa-arrow-pointer"></i>
+            <span><b>Rechtsklick</b> auf eine Kachel öffnet das Menü,
+                  <b>Rechtsklick halten und ziehen</b> sortiert die Kacheln um.</span></li>
+          <li><i class="fa-solid fa-comments"></i>
+            <span><b>Chat und Oberfläche</b> lassen sich je Kachel oder für alle zugleich ausblenden.</span></li>
+          <li><i class="fa-solid fa-truck-fast"></i>
+            <span><b>Versand</b> – gewinnst du bei einem Verkäufer, merkt sich die App das:
+                  weitere Lose kosten dort heute keinen zweiten Versand.</span></li>
+        </ul>
+      </div>
+
+      <div class="setup-foot">
+        <button id="setupSkip" class="ghost">Überspringen</button>
+        <div class="spacer"></div>
+        <button id="setupBack" class="ghost"><i class="fa-solid fa-arrow-left"></i> Zurück</button>
+        <button id="setupNext" class="primary">Weiter <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Konto gesperrt: liegt über allem und lässt sich nicht wegklicken -->
+  <div id="lockedOverlay" class="locked" hidden>
+    <div class="locked-card">
+      <i class="fa-solid fa-ban"></i>
+      <h2>Dieses Konto ist nicht zur Nutzung berechtigt</h2>
+      <p id="lockedWho"></p>
+      <p class="hint">Die Anwendung lässt sich mit diesem Whatnot-Konto nicht verwenden.</p>
+      <button id="lockedQuit" class="ghost"><i class="fa-solid fa-power-off"></i> Beenden</button>
     </div>
   </div>
 

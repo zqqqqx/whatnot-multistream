@@ -1,12 +1,15 @@
-const { app, BrowserWindow, clipboard, ipcMain, session, shell } = require('electron');
+const { app, BrowserWindow, clipboard, ipcMain, Menu, screen, session, shell } = require('electron');
 const path = require('path');
-const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
+
+const store = require('./store.js');
+const account = require('./account.js');
 
 // Streams sollen ohne Klick starten
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 const PARTITION = 'persist:whatnot';
+const REPO_URL = 'https://github.com/zqqqqx/whatnot-multistream';
 
 let win = null;
 
@@ -38,19 +41,45 @@ function prepareSession(ses) {
   });
 }
 
+const WINDOW_KEY = 'wnms.window.v1';
+
+/* Gemerkte Lage nur uebernehmen, wenn das Fenster dort auch zu sehen waere.
+ * Sonst startet die App unsichtbar - etwa weil der zweite Bildschirm nicht mehr
+ * angeschlossen ist, sich die Aufloesung geaendert hat oder das Fenster beim
+ * letzten Mal ueber den Rand geschoben wurde. Verlangt wird nur, dass ein
+ * ordentliches Stueck der Titelleiste auf einem Bildschirm liegt - daran laesst
+ * es sich zurueckholen. */
+function usablePlace(saved) {
+  if (!Number.isFinite(saved.x) || !Number.isFinite(saved.y)) return false;
+  const width = Number.isFinite(saved.width) ? saved.width : 1680;
+  const bar = { x: saved.x, y: saved.y, width: width, height: 60 };
+  return screen.getAllDisplays().some((display) => {
+    const area = display.workArea;
+    const overlapX = Math.min(bar.x + bar.width, area.x + area.width) - Math.max(bar.x, area.x);
+    const overlapY = Math.min(bar.y + bar.height, area.y + area.height) - Math.max(bar.y, area.y);
+    return overlapX >= 120 && overlapY >= 30;
+  });
+}
+
 function createWindow() {
   // Zuletzt eingestellte Fenstergroesse und -lage wieder herstellen
-  const saved = readStore()[WINDOW_KEY] || {};
+  const saved = store.get(WINDOW_KEY, {}) || {};
   const usable = Number.isFinite(saved.width) && Number.isFinite(saved.height);
+  const placed = usablePlace(saved);
 
   win = new BrowserWindow({
     width: usable ? Math.max(900, saved.width) : 1680,
     height: usable ? Math.max(600, saved.height) : 980,
-    x: Number.isFinite(saved.x) ? saved.x : undefined,
-    y: Number.isFinite(saved.y) ? saved.y : undefined,
+    x: placed ? saved.x : undefined,
+    y: placed ? saved.y : undefined,
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#0f1115',
+    // Ohne Systemrahmen: die Kopfleiste der App ist zugleich die Titelleiste
+    // (siehe .topbar in styles.css, -webkit-app-region: drag). thickFrame bleibt
+    // an, damit das Fenster an den Kanten weiter greifbar ist und seinen
+    // Schlagschatten behaelt.
+    frame: false,
     autoHideMenuBar: true,
     title: 'Whatnot Multistream',
     webPreferences: {
@@ -66,6 +95,18 @@ function createWindow() {
   if (saved.maximized) win.maximize();
   win.loadFile(path.join(__dirname, 'index.html'));
 
+  // Die eigenen Fensterknoepfe muessen wissen, ob gerade maximiert ist
+  const tellState = () => {
+    if (!win || win.isDestroyed()) return;
+    try { win.webContents.send('wnms-window', { maximized: win.isMaximized(), fullScreen: win.isFullScreen() }); }
+    catch (err) { /* Fenster geht gerade zu */ }
+  };
+  win.on('maximize', tellState);
+  win.on('unmaximize', tellState);
+  win.on('enter-full-screen', tellState);
+  win.on('leave-full-screen', tellState);
+  win.webContents.on('did-finish-load', tellState);
+
   // Nicht bei jedem Pixel schreiben, sondern wenn das Schieben vorbei ist
   let boundsTimer = null;
   const remember = () => {
@@ -79,6 +120,37 @@ function createWindow() {
   win.on('close', () => { clearTimeout(boundsTimer); saveBounds(); });
 }
 
+function saveBounds() {
+  if (!win || win.isDestroyed()) return;
+  try {
+    const bounds = win.isMaximized() ? win.getNormalBounds() : win.getBounds();
+    store.set(WINDOW_KEY, {
+      x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+      maximized: win.isMaximized()
+    });
+  } catch (err) { /* dann bleibt die alte Groesse stehen */ }
+}
+
+/* ================= Eigene Fensterknoepfe =================
+ * Der Systemrahmen ist weg (frame: false). Minimieren, Maximieren und
+ * Schliessen sitzen jetzt rechts in der Kopfleiste und melden sich hierher.
+ * Das Verschieben und der Doppelklick auf die Leiste erledigt Chromium selbst
+ * ueber -webkit-app-region: drag. */
+ipcMain.handle('wnms-window-command', (event, command) => {
+  const target = BrowserWindow.fromWebContents(event.sender);
+  if (!target || target.isDestroyed()) return null;
+  if (command === 'minimize') target.minimize();
+  else if (command === 'maximize') { if (target.isMaximized()) target.unmaximize(); else target.maximize(); }
+  else if (command === 'close') target.close();
+  return { maximized: target.isMaximized() };
+});
+
+ipcMain.handle('wnms-window-state', (event) => {
+  const target = BrowserWindow.fromWebContents(event.sender);
+  if (!target || target.isDestroyed()) return { maximized: false };
+  return { maximized: target.isMaximized(), fullScreen: target.isFullScreen() };
+});
+
 /* ================= Selbstaktualisierung =================
  *
  * Die App schaut bei GitHub nach, ob es eine neuere Fassung gibt. Geladen wird
@@ -91,11 +163,12 @@ function createWindow() {
 const UPDATE_INTERVAL = 3 * 60 * 60 * 1000; // alle drei Stunden nachsehen
 
 let updateState = { state: 'idle' };
+let updateAsked = false; // hat der Nutzer selbst nachgesehen? Dann Antwort zeigen
 
 function sendUpdate(state) {
-  updateState = state;
+  updateState = Object.assign({ at: Date.now(), asked: updateAsked }, state);
   if (win && !win.isDestroyed()) {
-    try { win.webContents.send('wnms-update', state); } catch (err) { /* Fenster geht gerade zu */ }
+    try { win.webContents.send('wnms-update', updateState); } catch (err) { /* Fenster geht gerade zu */ }
   }
 }
 
@@ -132,7 +205,8 @@ function setupUpdater() {
 ipcMain.handle('wnms-update-state', () => updateState);
 
 ipcMain.handle('wnms-update-check', () => {
-  if (!app.isPackaged) { sendUpdate({ state: 'dev' }); return; }
+  updateAsked = true;
+  if (!app.isPackaged) { sendUpdate({ state: 'dev', version: app.getVersion() }); return; }
   sendUpdate({ state: 'checking' });
   autoUpdater.checkForUpdates().catch(() => {});
 });
@@ -149,103 +223,50 @@ ipcMain.handle('wnms-update-install', () => {
   autoUpdater.quitAndInstall(false, true);
 });
 
-// Ein Live-Link aus einer Kachel im echten Browser oeffnen. Nur whatnot.com,
-// damit ueber diesen Weg nichts anderes gestartet werden kann.
-/* ================= Dauerhafte Ablage =================
- *
- * Die Streamerliste lag frueher im localStorage des Fensters. Das Fenster
- * benutzt aber dieselbe Ablage-Partition wie die Streams selbst - die
- * Streamerliste stand also mitten in mehreren hundert Megabyte Whatnot-Daten.
- * Wird davon etwas verworfen (Chromium raeumt bei Platzmangel je Herkunft auf,
- * und ein Loeschen der Seitendaten trifft alles darin), ist die Liste weg.
- *
- * Sie liegt deshalb jetzt als eigene Datei im Datenordner der App - unabhaengig
- * von allem, was Whatnot dort treibt. Geschrieben wird ueber eine Nebendatei,
- * die anschliessend in einem Zug an ihren Platz gezogen wird: Ein Absturz
- * mitten im Schreiben kann so keine halbe Datei hinterlassen. Die vorige
- * Fassung bleibt als .bak liegen und wird gelesen, falls die Hauptdatei
- * unbrauchbar ist.
- */
-const STORE_LIMIT = 4 * 1024 * 1024; // mehr als ein paar Kilobyte wird das nie
+ipcMain.handle('wnms-app-info', () => ({
+  version: app.getVersion(),
+  packaged: app.isPackaged,
+  repo: REPO_URL,
+  electron: process.versions.electron
+}));
 
-function storePath(suffix) {
-  return path.join(app.getPath('userData'), 'wnms-store.json' + (suffix || ''));
-}
-
-function readFileStore(file) {
-  // Ein vorangestelltes Byte-Order-Mark - etwa weil die Datei mit einem Editor
-  // angefasst wurde - laesst JSON.parse sonst scheitern und die Ablage
-  // faelschlich als beschaedigt gelten.
-  let raw = fs.readFileSync(file, 'utf8');
-  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1); // Byte-Order-Mark abstreifen
-  const data = JSON.parse(raw);
-  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('unerwarteter Inhalt');
-  return data;
-}
-
-function readStore() {
-  try {
-    return readFileStore(storePath());
-  } catch (err) { /* unten weiter mit der Sicherung */ }
-
-  try {
-    const data = readFileStore(storePath('.bak'));
-    // Aus der Sicherung gelesen heisst: die Hauptdatei taugt nichts. Sie wird
-    // sofort wiederhergestellt - sonst wuerde sie beim naechsten Schreiben als
-    // vermeintlich gute Fassung ueber die Sicherung kopiert.
-    try { writeStore(data, true); } catch (err) { /* dann eben beim naechsten Mal */ }
-    return data;
-  } catch (err) { /* auch die Sicherung ist nichts */ }
-
-  return {};
-}
-
-function writeStore(data, skipBackup) {
-  const text = JSON.stringify(data, null, 2);
-  if (text.length > STORE_LIMIT) throw new Error('Ablage unerwartet gross');
-  const file = storePath();
-  const temp = storePath('.tmp');
-  fs.writeFileSync(temp, text, 'utf8');
-
-  // Nur eine *lesbare* Hauptdatei wird zur Sicherung. Eine beschaedigte darf
-  // die letzte heile Fassung nicht verdraengen.
-  if (!skipBackup) {
-    try {
-      readFileStore(file);
-      fs.copyFileSync(file, storePath('.bak'));
-    } catch (err) { /* nicht vorhanden oder unbrauchbar - Sicherung bleibt, wie sie ist */ }
-  }
-
-  fs.renameSync(temp, file); // ersetzt die Datei in einem Zug
-}
+/* ================= Dauerhafte Ablage ================= */
 
 // Synchron, damit der Renderer seinen Bestand schon beim Aufbau hat
 ipcMain.on('wnms-store-read', (event) => {
-  try { event.returnValue = readStore(); } catch (err) { event.returnValue = {}; }
+  try { event.returnValue = store.read(); } catch (err) { event.returnValue = {}; }
 });
 
-// Zusammenfuehren statt ersetzen: Fenstergroesse schreibt der Hauptprozess,
-// alles andere der Renderer. Wuerde jeder die ganze Ablage ueberschreiben,
-// loeschte einer dem anderen seine Eintraege.
 ipcMain.handle('wnms-store-write', (_event, data) => {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
-  try { writeStore(Object.assign(readStore(), data)); return true; } catch (err) { return false; }
+  try { store.merge(data); return true; } catch (err) { return false; }
 });
 
-const WINDOW_KEY = 'wnms.window.v1';
+/* ================= Konto ================= */
 
-function saveBounds() {
+account.onChange((state) => {
   if (!win || win.isDestroyed()) return;
-  try {
-    const bounds = win.isMaximized() ? win.getNormalBounds() : win.getBounds();
-    writeStore(Object.assign(readStore(), {
-      [WINDOW_KEY]: {
-        x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
-        maximized: win.isMaximized()
-      }
-    }));
-  } catch (err) { /* dann bleibt die alte Groesse stehen */ }
-}
+  try { win.webContents.send('wnms-account', state); } catch (err) {}
+});
+
+ipcMain.handle('wnms-account-state', () => account.state());
+
+// Der Name, den der Renderer beim Live-Abgleich nebenbei aus einer Whatnot-Seite
+// gelesen hat. Hier laeuft er durch dieselbe Pruefung wie nach dem Anmelden -
+// damit greift die Sperre auch ohne neuen Anmeldevorgang.
+ipcMain.handle('wnms-account-observe', async (_event, username) => {
+  const info = await account.observe(String(username || ''));
+  return Object.assign({}, account.state(), { changed: info.changed });
+});
+
+ipcMain.handle('wnms-account-forget', () => { account.forget(); return account.state(); });
+
+ipcMain.handle('wnms-account-login', async () => {
+  if (account.locked()) return { result: 'locked' };
+  return account.openLogin(win, PARTITION);
+});
+
+/* ================= Kleinkram ================= */
 
 // Zwischenablage: nur Text, und nur was der Renderer selbst zusammengestellt hat
 ipcMain.handle('wnms-copy', (_event, text) => {
@@ -255,8 +276,19 @@ ipcMain.handle('wnms-copy', (_event, text) => {
   return true;
 });
 
+// Einen Link im echten Browser oeffnen. Nur die eigenen Adressen, damit ueber
+// diesen Weg nichts anderes gestartet werden kann.
+const OPEN_ALLOWED = [
+  /^https:\/\/(www\.)?whatnot\.com\//i,
+  /^https:\/\/github\.com\/zqqqqx\/whatnot-multistream(\/|$)/i
+];
+
 ipcMain.handle('wnms-open-external', (_event, url) => {
-  if (/^https:\/\/(www\.)?whatnot\.com\//i.test(url)) shell.openExternal(url);
+  if (account.locked()) return false;
+  const value = String(url || '');
+  if (!OPEN_ALLOWED.some((rule) => rule.test(value))) return false;
+  shell.openExternal(value);
+  return true;
 });
 
 // Zwei laufende Fenster wuerden sich beim Schreiben in die Quere kommen (und
@@ -273,6 +305,10 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.whenReady().then(() => {
+  // Ohne Systemrahmen gibt es auch keine Menuezeile - und die Alt-Taste, an der
+  // die Lupe haengt, soll nichts anderes ausloesen.
+  Menu.setApplicationMenu(null);
+
   prepareSession(session.fromPartition(PARTITION));
   prepareSession(session.defaultSession);
   createWindow();
