@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Whatnot Multistream</title>
+  <!-- Icons liegen im Paket, es wird nichts nachgeladen -->
+  <link rel="stylesheet" href="node_modules/@fortawesome/fontawesome-free/css/fontawesome.min.css">
+  <link rel="stylesheet" href="node_modules/@fortawesome/fontawesome-free/css/solid.min.css">
+  <link rel="stylesheet" href="node_modules/@fortawesome/fontawesome-free/css/regular.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">W</span>
+      <span class="brand-name">Multistream</span>
+    </div>
+    <span class="count" id="count"></span>
+
+    <div class="spacer"></div>
+
+    <button id="hiddenBtn" class="icon" title="Versteckte Streamer, die gerade live sind" hidden>
+      <i class="fa-solid fa-eye-slash"></i>
+      <span class="badge" id="hiddenCount">0</span>
+    </button>
+
+    <select id="colsSelect" class="mini" title="Spalten im Raster">
+      <option value="auto">Auto</option>
+      <option value="1">1 Spalte</option>
+      <option value="2">2 Spalten</option>
+      <option value="3">3 Spalten</option>
+      <option value="4">4 Spalten</option>
+      <option value="5">5 Spalten</option>
+      <option value="6">6 Spalten</option>
+    </select>
+
+    <span class="sep"></span>
+
+    <button id="checkBtn" class="icon" title="Jetzt prüfen, wer live ist">
+      <i class="fa-solid fa-tower-broadcast"></i>
+    </button>
+    <button id="muteAllBtn" class="icon" title="Alle stummschalten">
+      <i class="fa-solid fa-volume-xmark"></i>
+    </button>
+    <button id="reloadAllBtn" class="icon" title="Alle Kacheln neu laden">
+      <i class="fa-solid fa-arrows-rotate"></i>
+    </button>
+    <button id="loginBtn" class="icon" title="Bei Whatnot anmelden">
+      <i class="fa-solid fa-right-to-bracket"></i>
+    </button>
+
+    <button id="showsBtn" class="primary" title="Streamer verwalten">
+      <i class="fa-solid fa-users"></i> Shows
+    </button>
+  </header>
+
+  <main id="stage">
+    <div id="grid" class="grid"></div>
+
+    <div id="empty" class="empty">
+
+      <!-- Noch gar keine Streamer eingetragen -->
+      <div class="empty-card" id="emptyIntro">
+        <h2>Keine laufende Show</h2>
+        <p>
+          Trage unter <strong>Shows</strong> die <strong>Whatnot-Usernamen</strong> der Streamer ein,
+          die du verfolgen willst. Die App prüft alle zwei Minuten, wer davon gerade live ist,
+          und öffnet die laufende Show automatisch als Kachel. Endet eine Show, verschwindet die Kachel wieder.
+        </p>
+        <p class="hint">
+          Als <strong>versteckt</strong> markierte User werden weiter geprüft, aber nicht im Raster angezeigt.
+          Gehen sie live, erscheinen sie oben hinter dem <i class="fa-solid fa-eye-slash"></i>-Symbol.
+        </p>
+        <p class="hint">
+          <strong>Rechtsklick</strong> auf eine Kachel öffnet das Menü,
+          <strong>Rechtsklick halten und ziehen</strong> ordnet die Kacheln um.
+          Im großen Modus zeigt <strong>Strg halten</strong> eine Lupe, die dem Zeiger folgt –
+          Mausrad ändert ihre Größe, <strong>Umschalt + Mausrad</strong> die Vergrößerung.
+        </p>
+      </div>
+
+      <!-- Prüfung läuft: Radar mit ausstrahlenden Ringen -->
+      <div class="empty-card loading-card" id="emptyLoading" hidden>
+        <div class="pulse">
+          <span class="pulse-ring"></span>
+          <span class="pulse-ring"></span>
+          <span class="pulse-ring"></span>
+          <span class="pulse-core">W</span>
+        </div>
+        <h2>Suche laufende Shows</h2>
+        <p id="loadingWho"></p>
+      </div>
+
+      <!-- Geprüft, aber niemand sendet -->
+      <div class="empty-card" id="emptyIdle" hidden>
+        <h2>Gerade ist niemand live</h2>
+        <p id="idleInfo"></p>
+        <p class="hint">
+          Die nächste Prüfung läuft automatisch – der Sendeturm oben rechts startet sie sofort.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- fängt die Maus während des Ziehens ab, sonst schlucken die Kacheln die Bewegung -->
+    <div id="dragOverlay" class="drag-overlay" hidden></div>
+
+    <!-- Überblendung beim Wechsel zwischen Raster und großem Modus:
+         hält ein Standbild über die Bühne, während die Seite neu aufbaut -->
+    <div id="morph" class="morph" hidden>
+      <img id="morphShot" alt="">
+      <!-- kleiner Puffer: erscheint nur, wenn die Seite laenger zum Umbauen braucht -->
+      <div id="morphBusy" class="morph-busy">
+        <span class="morph-ring"></span>
+      </div>
+    </div>
+
+    <!-- Lupe im großen Modus: zeigt einen vergrößerten Ausschnitt der Kachel -->
+    <div id="lens" class="lens" hidden>
+      <img id="lensImage" alt="">
+      <span class="lens-label" id="lensLabel"></span>
+    </div>
+
+    <div id="tileMenu" class="tile-menu" hidden>
+      <div class="tile-menu-title" id="tileMenuTitle"></div>
+      <button data-action="focus"><i class="fa-solid fa-expand"></i> Groß anzeigen</button>
+      <button data-action="chat"><i class="fa-solid fa-comment-slash"></i> <span data-role="chat-label">Chat ausblenden</span></button>
+      <button data-action="clean"><i class="fa-solid fa-film"></i> <span data-role="clean-label">Nur Video zeigen</span></button>
+      <button data-action="external"><i class="fa-solid fa-arrow-up-right-from-square"></i> Im Browser öffnen</button>
+      <button data-action="ship"><i class="fa-solid fa-truck-fast"></i> <span data-role="ship-label">Versand läuft heute schon</span></button>
+      <button data-action="reload"><i class="fa-solid fa-rotate-right"></i> Neu laden</button>
+      <button data-action="hide"><i class="fa-solid fa-eye-slash"></i> User verstecken</button>
+      <button data-action="remove" class="danger"><i class="fa-solid fa-trash"></i> User entfernen</button>
+    </div>
+  </main>
+
+  <!-- Versteckte Streamer, die gerade live sind -->
+  <div id="hiddenPop" class="pop" hidden>
+    <div class="pop-head">
+      <span><i class="fa-solid fa-eye-slash"></i> Versteckt und live</span>
+    </div>
+    <div id="hiddenList" class="hidden-list"></div>
+  </div>
+
+  <!-- Verwaltung der beobachteten Streamer -->
+  <div id="showsPanel" class="panel" hidden>
+    <div class="panel-card">
+      <div class="panel-head">
+        <h2><i class="fa-solid fa-users"></i> Shows</h2>
+        <span class="panel-count" id="panelCount"></span>
+        <button id="showsClose" class="icon" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="userForm" class="panel-add" autocomplete="off">
+        <div class="add-field">
+          <i class="fa-solid fa-at"></i>
+          <input id="userInput" type="text" maxlength="800"
+                 placeholder="voltico, emd_livedeals, soleva7 …">
+        </div>
+        <label class="check" title="Wird geprüft, aber nicht im Raster angezeigt">
+          <input id="userHidden" type="checkbox"> versteckt
+        </label>
+        <button type="submit" class="primary"><i class="fa-solid fa-plus"></i> Hinzufügen</button>
+      </form>
+      <p class="panel-hint">
+        Mehrere auf einmal: mit <b>Komma</b> getrennt einfügen. Ganze Profil-Links und
+        <code>@name</code> werden auch erkannt, Doppelte übersprungen.
+      </p>
+
+      <div id="userList" class="user-list"></div>
+
+      <div class="panel-me">
+        <div class="me-head">
+          <i class="fa-solid fa-truck-fast"></i>
+          <div>
+            <strong>Dein Whatnot-Username</strong>
+            <span>Damit erkennt die App deine eigenen Zuschläge und merkt sich,
+                  bei wem der Versand heute schon läuft.</span>
+          </div>
+        </div>
+        <div class="me-row">
+          <div class="add-field">
+            <i class="fa-solid fa-at"></i>
+            <input id="meInput" type="text" maxlength="40" placeholder="dein-name" autocomplete="off">
+          </div>
+          <button id="meSave" type="button" class="ghost"><i class="fa-solid fa-check"></i> Speichern</button>
+          <span id="meState" class="me-state"></span>
+        </div>
+      </div>
+
+      <div class="panel-foot">
+        <span id="checkInfo" class="hint"></span>
+        <button id="copyBtn" class="ghost" title="Alle Usernamen als Liste kopieren – zum Weitergeben">
+          <i class="fa-regular fa-copy"></i> Liste kopieren
+        </button>
+        <button id="checkNowBtn" class="ghost"><i class="fa-solid fa-tower-broadcast"></i> Jetzt prüfen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Unsichtbarer Helfer: liegt auf whatnot.com und holt von dort die Profilseiten -->
+  <webview id="checker" class="checker" src="https://www.whatnot.com/robots.txt" partition="persist:whatnot"></webview>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Abhaengigkeiten und Bauergebnisse gehoeren nicht ins Repo
+node_modules/
+dist/
+
+# aus build/icon.svg erzeugt (npm run icon)
+build/icon.png
+build/icon.ico
+
+# Arbeitsreste
+*.log
+_*.js
+_*.html

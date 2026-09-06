@@ -1,0 +1,68 @@
+{
+  "name": "whatnot-multistream",
+  "version": "1.4.0",
+  "description": "Bis zu 20 Whatnot-Streams gleichzeitig in einem Fenster",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "icon": "node tools/make-icon.js",
+    "dist": "npm run icon && electron-builder --win"
+  },
+  "author": "zqqqqx",
+  "license": "AGPL-3.0-or-later",
+  "devDependencies": {
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.4"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.3.1"
+  },
+  "build": {
+    "appId": "de.local.whatnot-multistream",
+    "productName": "Whatnot Multistream",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload-main.js",
+      "preload-tile.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "node_modules/**/*",
+      "!node_modules/@fortawesome/fontawesome-free/js",
+      "!node_modules/@fortawesome/fontawesome-free/svgs",
+      "!node_modules/@fortawesome/fontawesome-free/svgs-full",
+      "!node_modules/@fortawesome/fontawesome-free/sprites",
+      "!node_modules/@fortawesome/fontawesome-free/sprites-full",
+      "!node_modules/@fortawesome/fontawesome-free/metadata",
+      "!node_modules/@fortawesome/fontawesome-free/scss",
+      "!node_modules/@fortawesome/fontawesome-free/less"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Whatnot-Multistream-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Whatnot Multistream",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    },
+    "extraMetadata": {
+      "name": "whatnot-multistream"
+    }
+  }
+}

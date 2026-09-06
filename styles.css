@@ -1,0 +1,1109 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1f232c;
+  --border: #2a2f3a;
+  --text: #eef0f3;
+  --muted: #98a1b0;
+  --accent: #ffd400;
+  --accent-text: #14151a;
+  --danger: #ff5d5d;
+  --live: #ff3b3b;
+  --topbar-h: 52px;
+}
+
+* { box-sizing: border-box; }
+
+/* Muss vor allen display-Regeln stehen: Knöpfe hier sind display:grid/flex und
+   würden die Vorgabe des hidden-Attributs sonst überstimmen. */
+[hidden] { display: none !important; }
+
+html { height: 100%; }
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  font-size: 13px;
+  user-select: none;
+}
+
+/* ---------- Topbar ---------- */
+
+.topbar {
+  flex: none;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.brand-name { letter-spacing: .2px; }
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.count {
+  margin-left: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spacer { flex: 1; }
+
+.sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background .12s, color .12s, opacity .12s;
+}
+
+button.primary { background: var(--accent); color: var(--accent-text); }
+button.primary:hover { background: #ffe14d; }
+button.primary:disabled { opacity: .35; cursor: not-allowed; }
+
+button.ghost {
+  background: var(--panel-2);
+  border-color: var(--border);
+}
+button.ghost:hover { background: #2b303b; }
+
+/* Schlichte Icon-Knöpfe: nur Symbol, Fläche erst beim Überfahren */
+button.icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+}
+button.icon:hover { background: var(--panel-2); color: var(--text); }
+button.icon.busy { color: var(--accent); }
+button.icon.has-live { color: var(--live); }
+
+.badge {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 15px;
+  font-variant-numeric: tabular-nums;
+}
+button.icon.has-live .badge { background: var(--live); color: #fff; }
+
+select.mini {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 7px 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+select.mini:hover { background: var(--panel-2); color: var(--text); }
+select.mini option { background: var(--panel); color: var(--text); }
+
+input[type="text"]:focus,
+select:focus { outline: 1px solid var(--accent); }
+
+/* ---------- Stage / Grid ---------- */
+
+#stage {
+  position: relative;
+  flex: 1;
+  /* ohne min-*: 0 wachsen die webviews (Eigenbreite 300px) über das Fenster hinaus */
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.grid {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tile.audio-on { border-color: var(--accent); }
+
+.tile.dragging {
+  outline: 2px solid var(--accent);
+  opacity: .75;
+  transform: scale(.97);
+  transition: transform .1s;
+}
+
+/* Feste Spaltenzahl: Zeilen in Handy-Höhe, bei Bedarf wird gescrollt */
+.grid.manual {
+  overflow-y: auto;
+  align-content: start;
+}
+.grid.manual.portrait .tile { align-self: start; }
+.grid.manual::-webkit-scrollbar { width: 8px; }
+.grid.manual::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+/* Kacheln im Smartphone-Format, zentriert in ihrer Rasterzelle.
+   Größe kommt aus dem Layout (siehe setTileSize) statt aus der Eigengröße des webviews. */
+.grid.portrait .tile {
+  width: var(--tile-w, 200px);
+  height: var(--tile-h, 356px);
+  align-self: center;
+  justify-self: center;
+}
+
+/* Kopfzeile schwebt über dem Bild, damit sie kein Format wegnimmt */
+.tile-head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 5px;
+  background: linear-gradient(to bottom, rgba(8, 10, 14, .92), rgba(8, 10, 14, .55) 70%, rgba(8, 10, 14, 0));
+  opacity: .45;
+  transition: opacity .12s;
+}
+.tile:hover .tile-head { opacity: 1; }
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #444a56;
+  flex: none;
+}
+.tile.is-live .live-dot {
+  background: var(--live);
+  box-shadow: 0 0 0 3px rgba(255, 59, 59, .18);
+}
+
+.tile-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42%;
+  flex: none;
+}
+
+.tile-title {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tile-actions {
+  display: flex;
+  gap: 1px;
+  flex: none;
+}
+
+.tile-actions button {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  border-radius: 5px;
+}
+.tile-actions button:hover { background: var(--panel-2); color: var(--text); }
+.tile-actions button.on { color: var(--accent); }
+
+.tile-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background: #000;
+}
+
+webview {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: inline-flex;
+  background: #000;
+}
+
+.tile-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .78);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 10px;
+  pointer-events: none;
+}
+.tile-status[hidden] { display: none; }
+
+/* Fokus-Modus: nur die gewaehlte Kachel, in voller Fensterbreite (Desktop-Ansicht).
+   Die uebrigen werden nicht ausgeblendet (display:none), sondern nur unsichtbar
+   an die Seite gelegt - in ihrer bisherigen Groesse. Damit bauen sie ihr Layout
+   nicht um und bleiben gezeichnet; beim Verkleinern sind sie sofort wieder da,
+   statt erst sekundenlang schwarz zu bleiben. */
+.grid.focus-mode .tile {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: var(--tile-w, 200px);
+  height: var(--tile-h, 356px);
+  opacity: 0;
+  pointer-events: none;
+}
+.grid.focus-mode .tile.focused {
+  position: relative;
+  left: auto;
+  top: auto;
+  z-index: 1;
+  display: flex;
+  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------- Los-Leiste ----------
+   Was gerade unter dem Hammer ist. Gehört zur App, nicht zur Seite – deshalb
+   bleibt sie auch in kleinen Kacheln lesbar, statt mitzuschrumpfen.
+   pointer-events: none, damit die Whatnot-Bedienung darunter erreichbar bleibt. */
+.tile-lot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 23px;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(8, 10, 14, .95), rgba(8, 10, 14, .7) 62%, rgba(8, 10, 14, 0));
+}
+
+.lot-title {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #dde1e9;
+}
+
+.lot-bid {
+  flex: none;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Du liegst vorn */
+.tile-lot.mine .lot-bid { color: #74e08a; }
+
+.lot-time {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  color: #ced4de;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Endspurt */
+.tile-lot.ending .lot-time {
+  background: var(--live);
+  color: #fff;
+  animation: lot-beat .9s ease-in-out infinite;
+}
+
+@keyframes lot-beat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-lot.ending .lot-time { animation: none; }
+}
+
+/* Versand läuft bei diesem Verkäufer heute schon */
+.lot-ship {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+  pointer-events: auto; /* nur hier, wegen des Hinweistextes */
+  cursor: help;
+}
+.lot-ship b { font-weight: 700; }
+
+.row-ship {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 212, 0, .14);
+  color: var(--accent);
+  font-size: 11px;
+  align-self: start;
+}
+
+/* ---------- Übergang Raster <-> großer Modus ----------
+   Der Deckel liegt über der ganzen Bühne und verbirgt, wie Whatnot die Seite
+   umbaut, wenn sich Maßstab und Kachelgröße ändern. Darüber fährt ein Standbild
+   der Kachel von der alten in die neue Größe. Bewegt wird alles per Skript
+   (Web Animations), hier steht nur der Ruhezustand. */
+.morph {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  /* kein eigener Untergrund: der Deckel verdeckt nur die Kachel, die gerade
+     wechselt - die uebrigen bleiben die ganze Zeit sichtbar und bedienbar */
+  opacity: 0;
+  pointer-events: none;
+}
+
+.morph img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  /* das Standbild behält sein Seitenverhältnis – hochkant im Raster,
+     querformat im großen Modus – und wird nie verzerrt */
+  object-fit: contain;
+  background: #000;
+  border-radius: 8px;
+}
+
+/* Puffer-Anzeige, solange die Seite unter dem Deckel noch umbaut.
+   Kommt erst nach einer kurzen Frist - schnelle Wechsel bleiben ruhig. */
+.morph-busy {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: rgba(9, 11, 15, .66);
+  border: 1px solid rgba(255, 255, 255, .07);
+  opacity: 0; /* wird per Skript eingeblendet */
+}
+
+.morph-ring {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 212, 0, .2);
+  border-top-color: var(--accent);
+  animation: morph-spin .8s linear infinite;
+}
+
+@keyframes morph-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Lupe ---------- */
+
+.lens {
+  position: absolute;
+  z-index: 45;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #000;
+  border: 2px solid rgba(255, 212, 0, .85);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .65), inset 0 0 0 1px rgba(0, 0, 0, .5);
+  pointer-events: none;
+}
+.lens[hidden] { display: none; }
+
+.lens img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.lens-label {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(8, 10, 14, .8);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Ziehen und Kontextmenü ---------- */
+
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  cursor: grabbing;
+}
+.drag-overlay[hidden] { display: none; }
+
+.tile-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 210px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .55);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tile-menu[hidden] { display: none; }
+
+.tile-menu-title {
+  padding: 5px 8px 7px;
+  color: var(--muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 7px;
+}
+.tile-menu button i { width: 15px; color: var(--muted); text-align: center; }
+.tile-menu button:hover { background: var(--panel-2); }
+.tile-menu button.danger { color: var(--danger); }
+.tile-menu button.danger i { color: var(--danger); }
+.tile-menu button.danger:hover { background: var(--danger); color: #fff; }
+.tile-menu button.danger:hover i { color: #fff; }
+
+/* ---------- Versteckte Live-Streams ---------- */
+
+.pop {
+  position: fixed;
+  z-index: 70;
+  width: min(460px, calc(100vw - 16px));
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, .6);
+}
+.pop[hidden] { display: none; }
+
+.pop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 10px;
+}
+
+.hidden-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.hidden-list::-webkit-scrollbar { width: 8px; }
+.hidden-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.hidden-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  text-align: left;
+  font-weight: 500;
+}
+.hidden-card:hover { border-color: var(--accent); }
+
+.hidden-thumb {
+  position: relative;
+  aspect-ratio: 9 / 13;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+  color: #3a4150;
+  font-size: 20px;
+}
+.hidden-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.hidden-live {
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--live);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.hidden-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hidden-meta strong { font-size: 12.5px; }
+.hidden-meta span {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hidden-action {
+  color: var(--accent) !important;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* ---------- Shows-Panel ---------- */
+
+.panel {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 60px 16px 16px;
+  background: rgba(6, 8, 12, .62);
+}
+.panel[hidden] { display: none; }
+
+.panel-card {
+  width: min(620px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, .6);
+  padding: 14px 18px 14px;
+}
+
+.panel-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.panel-head h2 i { color: var(--muted); font-size: 13px; }
+
+.panel-count {
+  margin-left: auto;
+  margin-right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.panel-add {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Eingabefeld mit vorangestelltem Zeichen */
+.add-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 10px;
+  transition: border-color .12s;
+}
+.add-field:focus-within { border-color: var(--accent); }
+.add-field > i { flex: none; color: var(--muted); font-size: 12px; }
+.add-field input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 9px 0;
+  font-size: 13px;
+  font-family: inherit;
+}
+.add-field input[type="text"]:focus { outline: none; }
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.check input { accent-color: var(--accent); }
+
+.panel-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.panel-hint code {
+  background: var(--panel-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.user-list {
+  flex: 1 1 auto;
+  margin: 12px 0 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.user-list::-webkit-scrollbar { width: 8px; }
+.user-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px 7px 7px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color .12s, background .12s;
+}
+.user-row:hover { border-color: #39404e; }
+.user-row.is-hidden { opacity: .58; }
+.user-row.is-live { border-color: rgba(255, 59, 59, .38); }
+
+/* Profilbild - solange keins geladen ist, steht dort der Anfangsbuchstabe */
+.avatar {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, #2c323e, #232833);
+  color: #8b94a5;
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  user-select: none;
+}
+.avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Live-Ring um das Bild */
+.user-row.is-live .avatar {
+  box-shadow: 0 0 0 2px var(--panel-2), 0 0 0 4px var(--live);
+}
+
+.user-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.user-name strong {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 59, 59, .16);
+  color: #ff7a7a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+.live-tag i { font-size: 7px; }
+
+.user-sub {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-sub.err { color: var(--danger); }
+
+.row-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.row-actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.row-actions button:hover { background: #333a47; color: var(--text); }
+.row-actions button.on { color: var(--accent); }
+.row-actions button.danger:hover { background: var(--danger); color: #fff; }
+
+/* Eigener Username */
+.panel-me {
+  flex: none;
+  margin: 6px 0 0;
+  padding: 11px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.me-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 9px;
+}
+.me-head > i {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 13px;
+}
+.me-head strong { display: block; font-size: 12px; }
+.me-head span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.me-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.me-row .add-field { background: var(--panel); }
+.me-state {
+  flex: none;
+  min-width: 74px;
+  color: #74e08a;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity .18s;
+}
+.me-state.on { opacity: 1; }
+
+.panel-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.panel-foot .hint { flex: 1 1 auto; min-width: 0; color: var(--muted); font-size: 12px; }
+
+/* ---------- Meldung ---------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 90;
+  max-width: 70vw;
+  padding: 9px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .5);
+  font-weight: 600;
+}
+.toast[hidden] { display: none; }
+
+/* ---------- Leerzustand ---------- */
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.empty[hidden] { display: none; }
+
+.empty-card {
+  max-width: 540px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 26px;
+  text-align: center;
+  line-height: 1.6;
+}
+.empty-card h2 { margin: 0 0 8px; font-size: 17px; }
+.empty-card p { margin: 0 0 10px; color: var(--muted); }
+.empty-card .hint { margin: 0 0 8px; font-size: 12px; }
+.empty-card .hint:last-child { margin-bottom: 0; }
+.empty-card code {
+  background: var(--panel-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--text);
+}
+
+/* ---------- Unsichtbarer Prüf-Webview ----------
+   Nicht display:none – ein verstecktes webview würde nicht mehr rendern
+   und könnte die Profilseiten nicht auswerten. */
+webview.checker {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 1100px;
+  height: 800px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------- Ladeanimation: „wer sendet gerade?" ----------
+   Ein Radar: das Abzeichen schlägt im Takt, Ringe laufen nach außen,
+   dahinter dreht ein Lichtkegel. */
+
+.loading-card { min-width: 280px; }
+
+.pulse {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  margin: 4px auto 20px;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+
+/* Der drehende Lichtkegel */
+.pulse::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 212, 0, 0) 0deg,
+    rgba(255, 212, 0, .18) 55deg,
+    rgba(255, 212, 0, 0) 120deg
+  );
+  animation: radar-sweep 2.6s linear infinite;
+  z-index: -1;
+}
+
+.pulse-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  animation: radar-ring 2.4s cubic-bezier(.22, .61, .36, 1) infinite;
+}
+.pulse-ring:nth-of-type(2) { animation-delay: .8s; }
+.pulse-ring:nth-of-type(3) { animation-delay: 1.6s; }
+
+.pulse-core {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 800;
+  font-size: 21px;
+  box-shadow: 0 0 24px rgba(255, 212, 0, .35);
+  animation: radar-beat 2.4s ease-in-out infinite;
+}
+
+@keyframes radar-sweep {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes radar-ring {
+  0%   { transform: scale(.4); opacity: 0; }
+  12%  { opacity: .85; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes radar-beat {
+  0%, 22%, 100% { transform: scale(1); }
+  8%            { transform: scale(1.14); }
+}
+
+/* Wer Bewegung im System abgestellt hat, bekommt ein ruhiges Bild */
+@media (prefers-reduced-motion: reduce) {
+  .pulse::before,
+  .pulse-ring,
+  .pulse-core { animation: none; }
+  .pulse-ring:nth-of-type(1) { opacity: .45; }
+}

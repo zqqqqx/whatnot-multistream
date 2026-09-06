@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Das Abzeichen aus der Kopfleiste: gelbes Quadrat mit runden Ecken, dunkles W -->
+  <rect x="0" y="0" width="1024" height="1024" rx="280" ry="280" fill="#ffd400"/>
+  <text x="512" y="512"
+        font-family="Segoe UI, Segoe UI Bold, Arial, Helvetica, sans-serif"
+        font-size="620" font-weight="800"
+        fill="#14151a"
+        text-anchor="middle" dominant-baseline="central">W</text>
+</svg>
