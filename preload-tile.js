@@ -7,10 +7,6 @@
 // während die anderen verkleinert bleiben.
 const { webFrame, ipcRenderer } = require('electron');
 
-// Taste, auf der die Lupe liegt. Steht hier und in renderer.js an genau einer
-// Stelle, damit Anzeige und Verhalten nicht auseinanderlaufen können.
-const LENS_KEY = 'Alt';
-
 ipcRenderer.on('wnms-zoom', (_event, factor, seq) => {
   try {
     webFrame.setZoomFactor(factor);
@@ -99,127 +95,33 @@ function watchSettled() {
 
 window.addEventListener('resize', watchSettled);
 
-/* ================= Lupe: Taste halten =================
+/* ================= Rechte Maustaste weiterreichen =================
  *
- * Die Lupe liegt auf einer einzigen Taste (LENS_KEY) und gilt nur, solange die
- * gehalten wird. Frueher steuerte zusaetzlich das Mausrad Groesse und
- * Vergroesserung - das ist raus, beides steht jetzt in den Einstellungen.
- *
- * Der wunde Punkt einer gehaltenen Taste ist das Loslassen: Wandert der
- * Tastaturfokus waehrenddessen weg (Kachel -> App-Fenster, Fenster -> anderes
- * Programm), kommt nie ein keyup an und die Lupe bliebe haengen. Deshalb wird
- * der Zustand der Taste bei *jedem* Ereignis nachgezogen: Maus, Tastatur,
- * Fokuswechsel. Kommt irgendwo ein Ereignis ohne gedrueckte Taste an, geht die
- * Lupe aus - egal, ob ein keyup dabei war.
+ * Die Kachel verschluckt sonst alle Mausereignisse: die rechte Maustaste wird
+ * deshalb an die App weitergereicht (Rechtsklick = Menue, Rechtsklick + Ziehen =
+ * Kachel umsortieren). In der Capture-Phase, damit Whatnots eigene Handler
+ * nichts abfangen koennen.
  */
-const TRACK_INTERVAL = 50;
-
-let trackOn = false;   // diese Kachel laeuft im grossen Modus
-let lensOn = false;    // die App zeigt die Lupe gerade
-let keyHeld = false;
-let lastPoint = { x: 0, y: 0 };
-let lastSent = 0;
-
-ipcRenderer.on('wnms-track', (_event, on) => {
-  trackOn = Boolean(on);
-  if (!trackOn) releaseKey();
-});
-ipcRenderer.on('wnms-lens', (_event, on) => {
-  lensOn = Boolean(on);
-  if (!lensOn) keyHeld = false;
-});
-
-function pressKey(point) {
-  if (keyHeld || !trackOn) return;
-  keyHeld = true;
-  try { ipcRenderer.sendToHost('wnms-lenson', point || lastPoint); } catch (err) {}
-}
-
-function releaseKey() {
-  if (!keyHeld) return;
-  keyHeld = false;
-  try { ipcRenderer.sendToHost('wnms-lensoff', lastPoint); } catch (err) {}
-}
-
-// Jedes Ereignis verraet nebenbei, ob die Taste noch liegt - das ist
-// verlaesslicher als auf ein keyup zu warten, das ausbleiben kann.
-function syncKey(event, point) {
-  if (!event) return;
-  const down = event.getModifierState ? event.getModifierState(LENS_KEY) : false;
-  if (down) pressKey(point);
-  else releaseKey();
-}
-
-// Die Kachel verschluckt sonst alle Mausereignisse: die rechte Maustaste wird
-// deshalb an die App weitergereicht (Rechtsklick = Menü, Rechtsklick+Ziehen =
-// Kachel umsortieren). In der Capture-Phase, damit Whatnots eigene Handler
-// nichts abfangen können.
 let rightDown = false;
+let lastPoint = { x: 0, y: 0 };
 
 window.addEventListener('mousedown', (event) => {
-  // Während die Lupe läuft, soll ein Klick nicht auch noch die Seite bedienen
-  if (lensOn && event.button === 0) {
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
   if (event.button !== 2) return;
   rightDown = true;
   ipcRenderer.sendToHost('wnms-rdown', { x: event.clientX, y: event.clientY });
 }, true);
 
-window.addEventListener('click', (event) => {
-  if (!lensOn) return;
-  event.preventDefault();
-  event.stopPropagation();
-}, true);
-
 window.addEventListener('mousemove', (event) => {
   lastPoint = { x: event.clientX, y: event.clientY };
-  syncKey(event, lastPoint);
-
-  if (lensOn) {
-    ipcRenderer.sendToHost('wnms-lensmove', lastPoint);
-  } else if (trackOn) {
-    const now = Date.now();
-    if (now - lastSent >= TRACK_INTERVAL) {
-      lastSent = now;
-      ipcRenderer.sendToHost('wnms-lensmove', lastPoint);
-    }
-  }
-
   if (!rightDown) return;
   ipcRenderer.sendToHost('wnms-rmove', lastPoint);
 }, true);
 
 window.addEventListener('mouseup', (event) => {
-  syncKey(event, lastPoint);
   if (event.button !== 2 || !rightDown) return;
   rightDown = false;
   ipcRenderer.sendToHost('wnms-rup', { x: event.clientX, y: event.clientY });
 }, true);
-
-// Taste gedrückt = Lupe an, losgelassen = Lupe weg.
-// keydown wiederholt sich beim Halten, deshalb der keyHeld-Merker.
-window.addEventListener('keydown', (event) => {
-  if (event.key === LENS_KEY) {
-    // Alt oeffnet im Browser sonst die Menuezeile bzw. verschluckt den nächsten
-    // Tastendruck - hier hat die Taste nur diese eine Aufgabe.
-    event.preventDefault();
-    pressKey(lastPoint);
-    return;
-  }
-  syncKey(event, lastPoint);
-}, true);
-
-window.addEventListener('keyup', (event) => {
-  if (event.key === LENS_KEY) { releaseKey(); return; }
-  syncKey(event, lastPoint);
-}, true);
-
-// Verlässt die Seite den Fokus, kommt kein keyup mehr an – Lupe trotzdem beenden
-window.addEventListener('blur', releaseKey);
-document.addEventListener('visibilitychange', () => { if (document.hidden) releaseKey(); });
 
 // Whatnots eigenes Kontextmenü unterdrücken – die App zeigt ihr eigenes
 window.addEventListener('contextmenu', (event) => event.preventDefault(), true);
@@ -496,5 +398,4 @@ window.addEventListener('pagehide', () => {
   clearInterval(settleTimer);
   settleTimer = null;
   if (joinObserver) { joinObserver.disconnect(); joinObserver = null; }
-  releaseKey();
 });

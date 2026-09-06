@@ -105,7 +105,6 @@
         <p class="hint">
           <strong>Rechtsklick</strong> auf eine Kachel öffnet das Menü,
           <strong>Rechtsklick halten und ziehen</strong> ordnet die Kacheln um.
-          In der Großansicht zeigt <strong>Alt halten</strong> eine Lupe, die dem Zeiger folgt.
         </p>
       </div>
 
@@ -145,26 +144,6 @@
       </div>
     </div>
 
-    <!-- Lupe im großen Modus: zeigt einen vergrößerten Ausschnitt der Kachel -->
-    <div id="lens" class="lens" hidden>
-      <img id="lensImage" alt="">
-      <span class="lens-label" id="lensLabel"></span>
-    </div>
-
-    <!-- Erklärung zur Lupe, hängt am Lupenknopf der Großansicht -->
-    <div id="lensPop" class="lens-pop" hidden>
-      <div class="lens-pop-key"><kbd id="lensPopKey">Alt</kbd> <span>Lupe</span></div>
-      <p>Taste gedrückt halten, um den Bereich unter dem Zeiger vergrößert zu sehen. Loslassen blendet sie wieder aus.</p>
-      <div class="lens-pop-row">
-        <label>Glas <output id="lensPopSizeOut"></output></label>
-        <input id="lensPopSize" type="range" min="140" max="620" step="20">
-      </div>
-      <div class="lens-pop-row">
-        <label>Vergrößerung <output id="lensPopMagOut"></output></label>
-        <input id="lensPopMag" type="range" min="1.5" max="8" step="0.5">
-      </div>
-    </div>
-
     <div id="tileMenu" class="tile-menu" hidden>
       <div class="tile-menu-title" id="tileMenuTitle"></div>
       <button data-action="focus"><i class="fa-solid fa-expand"></i> Groß anzeigen</button>
@@ -195,6 +174,12 @@
         <button id="showsClose" class="icon" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
+      <div class="tabs" id="showsTabs">
+        <button class="tab on" data-shows-tab="list"><i class="fa-solid fa-list"></i> Meine Streamer</button>
+        <button class="tab" data-shows-tab="discover"><i class="fa-solid fa-compass"></i> Neue Streams entdecken</button>
+      </div>
+
+      <section class="shows-page" data-shows-page="list">
       <form id="userForm" class="panel-add" autocomplete="off">
         <div class="add-field">
           <i class="fa-solid fa-at"></i>
@@ -239,6 +224,20 @@
         </button>
         <button id="checkNowBtn" class="ghost"><i class="fa-solid fa-tower-broadcast"></i> Jetzt prüfen</button>
       </div>
+      </section>
+
+      <!-- Was auf der Whatnot-Startseite gerade läuft -->
+      <section class="shows-page" data-shows-page="discover" hidden>
+        <p class="panel-hint">
+          Das läuft gerade auf deiner Whatnot-Startseite. Ein Klick nimmt den Streamer
+          in deine Liste auf – die Kachel erscheint dann von selbst.
+        </p>
+        <div id="discoverList" class="discover-list"></div>
+        <div class="panel-foot">
+          <span id="discoverInfo" class="hint"></span>
+          <button id="discoverReload" class="ghost"><i class="fa-solid fa-arrows-rotate"></i> Neu laden</button>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -299,18 +298,26 @@
               <small>Klein unter dem Gebot. Nur wenn Whatnot die Versandkosten wirklich nennt.</small></span>
           </label>
 
-          <h3>Lupe</h3>
+          <h3>Maßstab im Raster</h3>
           <p class="opt-hint">
-            In der Großansicht <kbd id="lensKeyHint">Alt</kbd> gedrückt halten. Das Mausrad steuert die Lupe
-            nicht mehr – Größe und Vergrößerung stehen hier.
+            Wie viel von Whatnots Oberfläche in eine Kachel passt. Nach links wird die
+            Seite größer gezeigt – das Videobild füllt mehr, vom Chat ist weniger zu sehen.
+            Nach rechts passt mehr Oberfläche hinein, das Bild wird kleiner.
+            Betrifft nur das Raster; die Großansicht läuft immer in Originalgröße.
           </p>
-          <div class="opt-row">
-            <label for="optLensSize">Größe des Glases <output id="optLensSizeOut"></output></label>
-            <input id="optLensSize" type="range" min="140" max="620" step="20">
-          </div>
-          <div class="opt-row">
-            <label for="optLensMag">Vergrößerung <output id="optLensMagOut"></output></label>
-            <input id="optLensMag" type="range" min="1.5" max="8" step="0.5">
+          <div class="opt-row scale-row">
+            <div class="scale-head">
+              <label for="optTileBase">Maßstab der Seite</label>
+              <output id="optTileBaseOut"></output>
+              <button id="optTileBaseReset" class="ghost" title="Zurück auf den Ausgangswert">
+                <i class="fa-solid fa-rotate-left"></i> Zurücksetzen
+              </button>
+            </div>
+            <div class="scale-track">
+              <span class="scale-end"><i class="fa-solid fa-video"></i> Video</span>
+              <input id="optTileBase" type="range" min="280" max="640" step="20">
+              <span class="scale-end">Oberfläche <i class="fa-solid fa-table-columns"></i></span>
+            </div>
           </div>
 
           <h3>Einrichtung</h3>
@@ -423,8 +430,6 @@
           <li><i class="fa-solid fa-expand"></i>
             <span><b>Groß anzeigen</b> – über das Symbol in der Kachelleiste oder das Rechtsklick-Menü.
                   Nur in der Großansicht lässt sich bieten.</span></li>
-          <li><i class="fa-solid fa-magnifying-glass"></i>
-            <span><b>Lupe</b> – in der Großansicht <kbd>Alt</kbd> halten, um Kleingedrucktes zu lesen.</span></li>
           <li><i class="fa-solid fa-arrow-pointer"></i>
             <span><b>Rechtsklick</b> auf eine Kachel öffnet das Menü,
                   <b>Rechtsklick halten und ziehen</b> sortiert die Kacheln um.</span></li>

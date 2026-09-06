@@ -80,6 +80,20 @@ Rechts liegen drei Schalter: Profil im Browser öffnen, verstecken und entfernen
 Kachel. Geht er live, erscheint er oben hinter dem Augen-Symbol. Praktisch für
 Kanäle, die man beobachten, aber nicht dauernd sehen will.
 
+### Neue Streams entdecken
+
+Der zweite Reiter im Shows-Fenster zeigt, was gerade auf **deiner** Whatnot-
+Startseite läuft – mit Vorschaubild, Verkäufer, Titel und Zuschauerzahl, nach
+Zuschauern sortiert. Ein Klick auf eine Karte nimmt den Verkäufer in die Liste
+auf; die Kachel erscheint dann von selbst. Wer schon in der Liste steht, ist als
+*Schon dabei* gekennzeichnet und lässt sich nicht doppelt aufnehmen.
+
+Gelesen wird über denselben Helfer wie die Live-Erkennung – der liegt ohnehin
+angemeldet auf whatnot.com. Beide teilen sich ihn der Reihe nach: Läuft gerade
+eine Live-Prüfung, kommt die Startseite erst danach dran, und der Hinweis im
+Fenster sagt das auch. Eine einmal geholte Liste gilt anderthalb Minuten als
+frisch, *Neu laden* holt sie sofort wieder.
+
 ### Ganze Listen einfügen und weitergeben
 
 Ins Eingabefeld darf auch eine **ganze Liste**:
@@ -137,8 +151,12 @@ Am unteren Rand jeder Kachel läuft eine schmale Zeile mit dem aktuellen Los:
 | **LKW-Symbol** | Bei diesem Verkäufer läuft der Versand heute schon (siehe unten). |
 
 Die Zeile gehört zur App, nicht zur Seite – sie bleibt deshalb auch in kleinen
-Kacheln lesbar, statt mitzuschrumpfen, und sie schluckt keine Klicks: Whatnots
-eigene Bedienung darunter bleibt erreichbar.
+Kacheln lesbar, statt mitzuschrumpfen. Sie liegt **nicht über** der Seite,
+sondern bekommt eigenen Platz unter ihr: Als Überlagerung stand sie zwangsläufig
+über Whatnots eigener Bedienung – unten über der Produktkarte und dem gelben
+Gebots-Knopf, oben über Name und „Folgen“ –, und zwei Schriften übereinander
+liest niemand. Jetzt wird die Seite in der Kachel um diese knapp 30 Pixel kürzer
+gezeichnet, und nichts überlappt mehr.
 
 Gelesen wird direkt in der Kachel, im Takt von 0,7 Sekunden, und gemeldet wird
 nur, wenn sich etwas geändert hat. Die Show-Oberfläche hat dafür benannte
@@ -218,7 +236,7 @@ Das Schieberegler-Symbol oben öffnet drei Reiter:
 
 | Reiter | Inhalt |
 | --- | --- |
-| **Allgemein** | Verhalten beim Start (sofort prüfen, Ton der letzten Sitzung wieder aufnehmen), Anzeige (Spaltenzahl, Ansicht der Kacheln, Los-Leiste, Preis inklusive Versand), Größe und Vergrößerung der Lupe, Assistent erneut starten. |
+| **Allgemein** | Verhalten beim Start (sofort prüfen, Ton der letzten Sitzung wieder aufnehmen), Anzeige (Spaltenzahl, Ansicht der Kacheln, Los-Leiste, Preis inklusive Versand), Maßstab im Raster, Assistent erneut starten. |
 | **Konto** | Erkannter Username, Anmeldestatus, anmelden bzw. Konto wechseln. |
 | **Updates & Über** | Installierte Version, *Nach Updates suchen* mit verständlicher Antwort, Herunterladen bzw. Neustarten, Link zum Projekt. |
 
@@ -238,15 +256,22 @@ Links der Zähler, dazwischen die Symbole:
 
 | Element | Funktion |
 | --- | --- |
-| **Shows** | Streamer hinzufügen, verstecken, entfernen (siehe oben). |
+| **Shows** | Streamer hinzufügen, verstecken, entfernen – und im zweiten Reiter entdecken, was gerade auf der Startseite läuft (siehe oben). |
 | **Augen-Symbol mit Zahl** | Erscheint, sobald es versteckte Streamer gibt; die Zahl sagt, wie viele davon gerade live sind. Ein Klick zeigt deren Vorschaubilder – ein Klick auf eine Karte holt den Streamer zurück ins Raster. |
 | **Spalten** | Rasteraufteilung. „Auto" wählt die Spaltenzahl so, dass das Streambild möglichst groß wird; bei fester Spaltenzahl füllen die Kacheln die Spaltenbreite und das Raster scrollt, wenn es nicht ins Fenster passt. |
 
 Egal wie viele Streams laufen und wie groß das Fenster ist: jede Kachel zeigt die
-Seite mit immer derselben logischen Breite (400 px), die Kachelgröße bestimmt nur
-den Maßstab. Das Verhältnis von Chat zu Videobild bleibt dadurch überall gleich –
+Seite mit immer derselben logischen Breite, die Kachelgröße bestimmt nur den
+Maßstab. Das Verhältnis von Chat zu Videobild bleibt dadurch überall gleich –
 bei drei großen Kacheln wird der Chat einfach größer, statt dass Whatnot auf ein
 breiteres Layout mit schmalem Chat umschaltet.
+
+Wie breit die Seite gezeichnet wird, stellst du unter *Einstellungen → Maßstab im
+Raster* ein. Das ist zugleich der Regler **Video gegen Oberfläche**: Nach links
+wird die Seite größer gezeigt – das Videobild füllt mehr Kachel, vom Chat ist
+weniger zu sehen. Nach rechts passt mehr Oberfläche hinein und das Bild wird
+kleiner. Betroffen ist nur das Raster; die Großansicht läuft immer in
+Originalgröße.
 | **Sprechblase** | Schaltet **alle** Kacheln gemeinsam im Kreis: ganze Seite → ohne Chat → nur Video. Legt zugleich fest, womit neu auftauchende Kacheln starten. |
 | **Sendeturm** | Prüfung sofort starten, statt auf das 2-Minuten-Intervall zu warten. |
 | **Lautsprecher / Kreispfeile** | Alle stummschalten bzw. alle Kacheln neu laden. |
@@ -259,7 +284,6 @@ Je Kachel, in der Kopfzeile (erscheint beim Überfahren):
 | --- | --- |
 | **Lautsprecher** | Ton läuft immer nur auf einer Kachel – Klick schaltet dorthin um. |
 | **Sprechblase** | Schaltet die Ansicht im Kreis: **ganze Seite** → **ohne Chat** (Shop, Preis und Gebots-Schaltflächen bleiben) → **nur Video**. Das Rechtsklick-Menü hat beide Schritte auch einzeln. Gilt nur fürs Raster – in der Großansicht ist der Knopf deshalb ausgeblendet. |
-| **Lupe** | Nur in der Großansicht: erklärt, auf welcher Taste die Lupe liegt, und stellt Glasgröße und Vergrößerung ein. |
 | **Pfeil aus dem Kasten** | Diese Show im richtigen Browser öffnen. |
 | **Vergrößern / Verkleinern** | Großansicht: Kachel füllt das Fenster in **Originalgröße und Desktop-Layout** – Shop, Produkte und Gebote sind bedienbar. Dort sind Chat und Oberfläche **immer da**, unabhängig davon, was im Raster eingestellt ist; beim Verkleinern kommt genau der Rasterzustand zurück (Chat im Raster ausgeblendet → in der Großansicht sichtbar → danach wieder ausgeblendet). Beim Vergrößern läuft der Ton dieser Show, beim Verkleinern wieder der Zustand von vorher. Verkleinern geht auch mit Esc. |
 | **Kreispfeil** | Show neu laden. |
@@ -268,7 +292,6 @@ Weitere Griffe:
 
 | Aktion | Funktion |
 | --- | --- |
-| **Alt halten (in der Großansicht)** | Lupe: ein Glas folgt dem Zeiger und zeigt den Ausschnitt darunter vergrößert. Loslassen blendet sie wieder aus. Größe und Vergrößerung stehen in den Einstellungen und im Lupen-Knopf der Großansicht – das Mausrad steuert sie nicht mehr. |
 | **Rechtsklick auf eine Kachel** | Menü mit *Groß anzeigen*, *Nur Video zeigen*, *Im Browser öffnen*, *Versand läuft heute schon*, *Neu laden*, *User verstecken* und *User entfernen*. |
 | **Rechtsklick halten und ziehen** | Kacheln umsortieren. Die Streams laufen dabei weiter – die Reihenfolge wird nur über CSS gesetzt, die Kacheln werden nicht neu geladen. |
 
@@ -310,9 +333,8 @@ Darin steht alles, was du einstellst, und es steht beim nächsten Start wieder d
 | Ansicht für alle, Spaltenzahl, eigener Username | allgemeine Einstellungen |
 | **Erkanntes Konto und Sperrvermerk** | schreibt der Hauptprozess, nicht das Fenster |
 | **Fortschritt der Einrichtung** | Schritt und ob sie abgeschlossen ist |
-| **Alle Schalter der Einstellungen** | Startverhalten, Los-Leiste, Preis inklusive Versand |
+| **Alle Schalter der Einstellungen** | Startverhalten, Los-Leiste, Preis inklusive Versand, Maßstab im Raster |
 | **Welcher Stream Ton hat** | wird wieder aufgenommen, sobald die Kachel da ist |
-| **Größe und Vergrößerung der Lupe** | so, wie du sie zuletzt eingestellt hast |
 | **Fenstergröße, -lage und Vollbild** | wird beim Verschieben gemerkt |
 | Versand-Merker | je Streamer, gilt für den laufenden Tag |
 
@@ -368,22 +390,6 @@ Spätestens nach 2,6 Sekunden geht es ohnehin weiter.
 Sind die Windows-Animationseffekte abgeschaltet (*Einstellungen → Barrierefreiheit
 → Visuelle Effekte*), entfällt nur die Fahrt in die neue Größe – der Deckel
 bleibt, der Umbau ist also weiterhin nicht zu sehen.
-
-### Wie die Lupe technisch geht
-
-Eine Kachel ist ein eigenständiger Browser-View – ihr Inhalt lässt sich vom
-App-Fenster aus nicht einfach vergrößert nachzeichnen. Die Lupe fotografiert
-deshalb zehnmal pro Sekunde genau den Ausschnitt unter dem Glas ab
-(`capturePage` mit Rechteck, nicht die ganze Seite) und setzt ihn vergrößert ein.
-
-Der wunde Punkt einer gehaltenen Taste ist das **Loslassen**: Wandert der
-Tastaturfokus dazwischen weg – von der Kachelseite ins App-Fenster, vom Fenster in
-ein anderes Programm –, kommt nie ein `keyup` an, und die Lupe bliebe stehen.
-Dagegen stehen drei Dinge: Kachelseite und App-Fenster ziehen den Tastenzustand
-bei **jedem** Ereignis nach (`getModifierState`) statt nur beim `keyup`; jeder
-Fokusverlust beendet sie; und ein Wächter prüft im Takt, ob die Voraussetzungen
-überhaupt noch stimmen – Kachel vorhanden, groß angezeigt, Fenster im
-Vordergrund. Fällt eine davon weg, ist sofort Schluss.
 
 ## Grenzen
 

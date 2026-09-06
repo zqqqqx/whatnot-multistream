@@ -396,22 +396,23 @@ webview {
 /* ---------- Los-Leiste ----------
    Was gerade unter dem Hammer ist. Gehört zur App, nicht zur Seite – deshalb
    bleibt sie auch in kleinen Kacheln lesbar, statt mitzuschrumpfen.
-   pointer-events: none, damit die Whatnot-Bedienung darunter erreichbar bleibt. */
+
+   Sie liegt *nicht* über der Seite, sondern bekommt eigenen Platz unter ihr:
+   Als Überlagerung stand sie zwangsläufig über Whatnots eigener Bedienung – am
+   unteren Rand über der Produktkarte und dem gelben Gebots-Knopf, am oberen
+   über Name und "Folgen". Zwei Schriften übereinander liest niemand. Jetzt wird
+   die Seite um diese knapp 30 Pixel kürzer gezeichnet und nichts überlappt mehr. */
 .tile-lot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 4;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 6px;
   min-height: 23px;
-  padding: 2px 7px;
+  padding: 3px 7px;
+  background: #0d1015;
+  border-top: 1px solid var(--border);
   font-size: 11px;
   line-height: 1.15;
-  pointer-events: none;
-  background: linear-gradient(to top, rgba(8, 10, 14, .95), rgba(8, 10, 14, .7) 62%, rgba(8, 10, 14, 0));
 }
 
 .lot-title {
@@ -440,11 +441,10 @@ webview {
 }
 
 .lot-total {
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--muted);
   white-space: nowrap;
-  pointer-events: auto;   /* nur wegen des Hinweistextes */
   cursor: help;
 }
 
@@ -486,7 +486,6 @@ webview {
   align-items: center;
   gap: 3px;
   color: var(--accent);
-  pointer-events: auto; /* nur hier, wegen des Hinweistextes */
   cursor: help;
 }
 .lot-ship b { font-weight: 700; }
@@ -558,41 +557,6 @@ webview {
 
 @keyframes morph-spin {
   to { transform: rotate(360deg); }
-}
-
-/* ---------- Lupe ---------- */
-
-.lens {
-  position: absolute;
-  z-index: 45;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #000;
-  border: 2px solid rgba(255, 212, 0, .85);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, .65), inset 0 0 0 1px rgba(0, 0, 0, .5);
-  pointer-events: none;
-}
-.lens[hidden] { display: none; }
-
-.lens img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.lens-label {
-  position: absolute;
-  left: 50%;
-  bottom: 8px;
-  transform: translateX(-50%);
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: rgba(8, 10, 14, .8);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Ziehen und Kontextmenü ---------- */
@@ -1211,58 +1175,6 @@ webview.checker {
 body.is-maximized .win-btn .ic-max { display: none; }
 body.is-maximized .win-btn .ic-restore { display: block; }
 
-/* ---------- Lupen-Erklärung ---------- */
-
-.lens-pop {
-  position: fixed;
-  z-index: 70;
-  width: 268px;
-  padding: 12px 14px 14px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, .55);
-}
-.lens-pop[hidden] { display: none; }
-.lens-pop p { margin: 8px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
-
-.lens-pop-key {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-weight: 600;
-}
-
-.lens-pop-row {
-  display: grid;
-  gap: 4px;
-  margin-top: 10px;
-}
-.lens-pop-row label {
-  display: flex;
-  justify-content: space-between;
-  color: var(--muted);
-  font-size: 11.5px;
-}
-.lens-pop-row output { color: var(--text); font-variant-numeric: tabular-nums; }
-
-/* Taste als Tastenkappe */
-kbd {
-  display: inline-block;
-  min-width: 34px;
-  padding: 3px 9px;
-  border: 1px solid var(--border);
-  border-bottom-width: 3px;
-  border-radius: 7px;
-  background: var(--panel-2);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 700;
-  text-align: center;
-  letter-spacing: .3px;
-}
-
 input[type="range"] {
   -webkit-appearance: none;
   width: 100%;
@@ -1388,7 +1300,6 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 11.5px;
   line-height: 1.5;
 }
-.opt-hint kbd { margin: 0 2px; }
 
 /* Konto-Karte, auch im „Über“-Reiter benutzt */
 .acc-card {
@@ -1559,7 +1470,6 @@ button.big { padding: 11px 18px; font-size: 13.5px; }
 .setup-tips li:last-child { border-bottom: none; }
 .setup-tips i { flex: none; width: 17px; margin-top: 2px; color: var(--accent); text-align: center; }
 .setup-tips span { flex: 1 1 auto; min-width: 0; }
-.setup-tips kbd { margin: 0 2px; }
 .setup-tips b { color: var(--text); }
 
 .setup-foot {
@@ -1600,3 +1510,164 @@ button.big { padding: 11px 18px; font-size: 13.5px; }
 .locked-card p { margin: 0 0 8px; color: var(--muted); }
 .locked-card .hint { font-size: 12px; }
 .locked-card button { margin-top: 16px; }
+
+/* ---------- Maßstabsregler ---------- */
+
+.scale-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.scale-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.scale-head label { font-size: 12.5px; }
+.scale-head output {
+  flex: 1 1 auto;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.scale-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.scale-track input[type="range"] { flex: 1 1 auto; width: auto; }
+
+.scale-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.scale-end i { font-size: 11px; }
+
+/* ---------- Shows: die beiden Reiter ---------- */
+
+.shows-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.shows-page[hidden] { display: none; }
+
+.panel-hint.err { color: var(--danger); }
+
+/* ---------- Neue Streams entdecken ----------
+   Was gerade auf der eigenen Startseite läuft, als Karten mit Vorschaubild.
+   Ein Klick nimmt den Verkäufer in die Liste auf. */
+.discover-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  /* Feste Spaltenbreite, keine 1fr: In einer flexiblen Spalte steht die Breite
+     bei der Zeilenberechnung noch nicht fest, ein aspect-ratio steuert dann
+     nichts zur Höhe bei - die Zeilen fielen auf die Höhe der Beschriftung
+     zusammen und das Bild wurde abgeschnitten. */
+  grid-template-columns: repeat(auto-fill, 132px);
+  justify-content: center;
+  align-content: start;
+  gap: 10px;
+  padding: 2px 2px 8px;
+}
+.discover-list::-webkit-scrollbar { width: 8px; }
+.discover-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.discover-list .panel-hint { grid-column: 1 / -1; margin: 10px 0; }
+
+/* Kein overflow:hidden auf der Karte: Das macht sie zum Scrollbereich, und ein
+   solcher steuert seine Inhaltshöhe nicht mehr zur Rasterzeile bei - die Zeile
+   fiel auf die Höhe der Beschriftung zusammen. Abgerundet wird deshalb am Bild. */
+.discover-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: border-color .12s;
+}
+.discover-card:hover { border-color: var(--accent); }
+.discover-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.discover-card.known { cursor: default; opacity: .5; }
+.discover-card.known:hover { border-color: var(--border); }
+
+.discover-thumb {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px 10px 0 0;
+  /* genau das Format, in dem Whatnot die Vorschaubilder liefert (414x640,
+     hochkant) - so wird nichts abgeschnitten */
+  height: 204px;
+  display: grid;
+  place-items: center;
+  background: #000;
+  color: var(--muted);
+  font-size: 20px;
+}
+.discover-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.discover-live {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--live);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.discover-meta {
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px 9px;
+  min-width: 0;
+}
+
+.discover-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.discover-name .avatar { width: 20px; height: 20px; font-size: 9px; flex: none; }
+.discover-name strong {
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.discover-title {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  /* zwei Zeilen, dann Auslassungspunkte – die Titel sind teils sehr lang */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.discover-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+.discover-card.known .discover-add { color: var(--muted); }

@@ -32,29 +32,17 @@ const TILE_GAP = 6;
 // zu Videobild gleich, egal wie viele Streams laufen oder wie gross das Fenster
 // ist - bei wenigen, grossen Kacheln wird der Chat schlicht groesser, statt dass
 // Whatnot auf ein breiteres Layout mit schmalem Chat umschaltet.
-const TILE_BASE_WIDTH = 400;
+const TILE_BASE_DEFAULT = 400;
+const TILE_BASE_MIN = 280;
+const TILE_BASE_MAX = 640;
 const MIN_PREVIEW_ZOOM = 0.25;
 const MAX_PREVIEW_ZOOM = 3;
 
 // Die fokussierte Kachel laeuft in Originalgroesse - nur dort sind die
-// Gebots-Schaltflaechen bedienbar. Fuer Kleingedrucktes gibt es dort die Lupe.
+// Gebots-Schaltflaechen bedienbar.
 const FOCUS_ZOOM = 1;
 
 let previewZoom = 0.5;
-
-// Lupe: Groesse des Glases in Pixeln, Vergroesserung des Ausschnitts.
-// Gesteuert wird sie ueber genau eine gehaltene Taste; das Mausrad hat damit
-// nichts mehr zu tun (Groesse und Vergroesserung stehen in den Einstellungen).
-const LENS_KEY = 'Alt';        // muss zu LENS_KEY in preload-tile.js passen
-const LENS_KEY_LABEL = 'Alt';
-const LENS_START_SIZE = 260;
-const LENS_MIN_SIZE = 140;
-const LENS_MAX_SIZE = 620;
-const LENS_START_MAG = 2.5;
-const LENS_MIN_MAG = 1.5;
-const LENS_MAX_MAG = 8;
-const LENS_FRAME_MS = 90;
-const LENS_GUARD_MS = 400;     // Takt des Waechters gegen eine haengende Lupe
 
 // Uebergang zwischen Vorschau und grossem Modus (siehe setFocus)
 const MORPH_MOVE_MS = 240;    // Standbild in die neue Groesse fahren
@@ -222,6 +210,81 @@ function readProfile(input, user) {
   return { ok: true, shows: shows, avatar: avatar, me: me };
 }
 
+/* ================= Startseite auswerten =================
+ *
+ * Fuer "Neue Streams entdecken": Die Whatnot-Startseite bringt ihre Empfehlungen
+ * im Klartext mit - rund fuenfzig Bloecke, jeder mit Verkaeufer, Titel,
+ * Vorschaubild und Zuschauerzahl. Gelesen wird derselbe Datenblock wie bei den
+ * Profilseiten, nur ohne Filter auf einen bestimmten Namen.
+ *
+ * Laeuft als Text in der Whatnot-Seite (siehe discoverProbeJs) und darf deshalb
+ * nichts aus dieser Datei benutzen.
+ */
+function readDiscover(input) {
+  const html = String(input || '');
+  const out = [];
+  const seen = {};
+
+  function unescapeJson(raw) {
+    if (!raw) return '';
+    try { return JSON.parse('"' + raw + '"'); } catch (err) { return raw; }
+  }
+
+  const parts = html.split('"__typename":"LiveStream"');
+  for (let i = 1; i < parts.length; i++) {
+    // Der Block endet von selbst am naechsten Marker; die Grenze deckelt nur
+    // den Aufwand, falls Whatnot einmal riesige Bloecke liefert.
+    const chunk = parts[i].slice(0, 12000);
+
+    const status = (chunk.match(/"status":"([A-Z_]+)"/) || [])[1] || '';
+    if (!/^(PLAYING|LIVE|ACTIVE|STARTED|STREAMING)$/i.test(status)) continue;
+
+    const idHit = chunk.match(/"id":"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/i);
+    const userHit = chunk.match(/"username":"([A-Za-z0-9_.-]{2,40})"/);
+    if (!idHit || !userHit) continue;
+
+    const username = userHit[1];
+    const key = username.toLowerCase();
+    if (seen[key]) continue;   // derselbe Verkaeufer kann mehrfach im Feed stehen
+    seen[key] = 1;
+
+    // Das Profilbild haengt hinter dem Namen im selben Nutzer-Objekt
+    const nachName = chunk.slice(userHit.index);
+    const avatarHit = nachName.match(/"profileImage":\{[^}]*"url":"([^"]+)"/);
+
+    out.push({
+      username: username,
+      showId: idHit[1],
+      title: unescapeJson((chunk.match(/"title":"((?:[^"\\]|\\.)*)"/) || [])[1]),
+      thumb: unescapeJson((chunk.match(/"smallImage":"((?:[^"\\]|\\.)*)"/) || [])[1]),
+      avatar: avatarHit ? unescapeJson(avatarHit[1]) : '',
+      viewers: Number((chunk.match(/"activeViewers":(\d+)/) || [])[1] || 0)
+    });
+  }
+
+  out.sort((a, b) => b.viewers - a.viewers);
+  return { ok: true, shows: out };
+}
+
+const READ_DISCOVER_SRC = readDiscover.toString();
+
+// Holt die Startseite im Whatnot-Tab und wertet sie gleich dort aus - die Seite
+// ist rund zweieinhalb Megabyte gross, davon soll nur die kurze Liste zurueck.
+function discoverProbeJs() {
+  return `(async () => {
+  const read = ${READ_DISCOVER_SRC};
+  try {
+    const res = await fetch('/de-DE', { credentials: 'include' });
+    if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
+    const html = await res.text();
+    if (html.indexOf('LiveStream') < 0) return { ok: false, error: 'Startseite nicht lesbar' };
+    return read(html);
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+})()`;
+}
+
 const READ_PROFILE_SRC = readProfile.toString();
 
 // Holt die Profilseite als Text - laeuft im Whatnot-Tab, damit Herkunft und
@@ -295,15 +358,6 @@ const els = {
   morph: document.getElementById('morph'),
   morphShot: document.getElementById('morphShot'),
   morphBusy: document.getElementById('morphBusy'),
-  lens: document.getElementById('lens'),
-  lensImage: document.getElementById('lensImage'),
-  lensLabel: document.getElementById('lensLabel'),
-  lensPop: document.getElementById('lensPop'),
-  lensPopKey: document.getElementById('lensPopKey'),
-  lensPopSize: document.getElementById('lensPopSize'),
-  lensPopSizeOut: document.getElementById('lensPopSizeOut'),
-  lensPopMag: document.getElementById('lensPopMag'),
-  lensPopMagOut: document.getElementById('lensPopMagOut'),
   toast: document.getElementById('toast'),
   checker: document.getElementById('checker'),
 
@@ -323,12 +377,14 @@ const els = {
   optView: document.getElementById('optView'),
   optShowLot: document.getElementById('optShowLot'),
   optShowTotal: document.getElementById('optShowTotal'),
-  optLensSize: document.getElementById('optLensSize'),
-  optLensSizeOut: document.getElementById('optLensSizeOut'),
-  optLensMag: document.getElementById('optLensMag'),
-  optLensMagOut: document.getElementById('optLensMagOut'),
+  optTileBase: document.getElementById('optTileBase'),
+  optTileBaseOut: document.getElementById('optTileBaseOut'),
+  optTileBaseReset: document.getElementById('optTileBaseReset'),
   optSetupAgain: document.getElementById('optSetupAgain'),
-  lensKeyHint: document.getElementById('lensKeyHint'),
+  showsTabs: document.getElementById('showsTabs'),
+  discoverList: document.getElementById('discoverList'),
+  discoverInfo: document.getElementById('discoverInfo'),
+  discoverReload: document.getElementById('discoverReload'),
 
   // Konto
   accAvatar: document.getElementById('accAvatar'),
@@ -479,9 +535,8 @@ let settings = Object.assign({
   me: '',
   view: 'full',        // Voreinstellung fuer neue Kacheln, vom Knopf oben gesetzt
   unmuted: null,       // welcher Streamer zuletzt Ton hatte
-  lensSize: 0,         // Groesse des Lupenglases
-  lensMag: 0,          // Vergroesserung der Lupe
-  showLot: true,       // Los-Leiste am unteren Kachelrand
+  tileBase: 0,         // logische Seitenbreite je Kachel (Video gegen Oberflaeche)
+  showLot: true,       // Los-Leiste am Kachelrand
   showTotal: true,     // Gesamtpreis inklusive Versand darunter
   startCheck: true,    // beim Start sofort nachsehen, wer live ist
   restoreSound: true   // den zuletzt hoerbaren Stream wieder aufdrehen
@@ -490,6 +545,9 @@ let settings = Object.assign({
 function saveSettings() {
   store(SETTINGS_KEY, settings);
 }
+
+// Massstab der Seite in den Rasterkacheln (siehe setPreviewZoom)
+let tileBase = clampTileBase(settings.tileBase || TILE_BASE_DEFAULT);
 
 /* ================= Versand-Buendelung =================
  *
@@ -546,7 +604,6 @@ let focusedId = null;
 // ist - sofern das in den Einstellungen so bleibt.
 let unmutedId = settings.restoreSound === false ? null : (settings.unmuted || null);
 let unmutedBeforeFocus = null; // Ton, der vor dem Vergroessern lief
-let lens = null;
 
 function stateOf(user) {
   let state = states.get(user.id);
@@ -850,14 +907,11 @@ function createTile(user, state) {
 
   const audioBtn = addTileButton(actions, 'fa-volume-xmark', 'Ton für diesen Stream einschalten');
   const viewBtn = addTileButton(actions, 'fa-comments', 'Chat ausblenden');
-  // Nur in der Großansicht: erklärt die Lupe und stellt sie ein
-  const lensBtn = addTileButton(actions, 'fa-magnifying-glass', 'Lupe: ' + LENS_KEY_LABEL + ' halten');
   const externalBtn = addTileButton(actions, 'fa-arrow-up-right-from-square', 'Show im Browser öffnen');
   const focusBtn = addTileButton(actions, 'fa-expand', 'Groß anzeigen');
   const shrinkBtn = addTileButton(actions, 'fa-compress', 'Fokus verlassen');
   const reloadBtn = addTileButton(actions, 'fa-rotate-right', 'Neu laden');
   shrinkBtn.hidden = true;
-  lensBtn.hidden = true;
 
   head.append(liveDot, name, title, actions);
 
@@ -899,8 +953,10 @@ function createTile(user, state) {
   lotTime.className = 'lot-time';
   lotBar.append(lotShip, lotTitle, lotPrice, lotTime);
 
-  body.append(webview, status, lotBar);
-  el.append(head, body);
+  body.append(webview, status);
+  // Die Los-Leiste haengt an der Kachel, nicht ueber der Seite - so nimmt sie
+  // eigenen Platz ein und verdeckt Whatnots Bedienung nicht (siehe styles.css).
+  el.append(head, body, lotBar);
 
   const tile = {
     el,
@@ -910,7 +966,6 @@ function createTile(user, state) {
     nameEl: name,
     audioBtn,
     viewBtn,
-    lensBtn,
     focusBtn,
     shrinkBtn,
     id: user.id,
@@ -933,7 +988,6 @@ function createTile(user, state) {
   };
 
   audioBtn.addEventListener('click', () => setUnmuted(unmutedId === user.id ? null : user.id));
-  lensBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleLensPop(lensBtn); });
   viewBtn.addEventListener('click', () => applyView(tile, nextView(tile.gridView)));
   externalBtn.addEventListener('click', () => openInBrowser(tile.liveUrl));
   focusBtn.addEventListener('click', () => setFocus(focusedId === user.id ? null : user.id));
@@ -958,13 +1012,6 @@ function createTile(user, state) {
     if (event.channel === 'wnms-rdown') beginRightPress(user.id, hostPoint);
     else if (event.channel === 'wnms-rmove') moveRightPress(hostPoint);
     else if (event.channel === 'wnms-rup') endRightPress(hostPoint);
-    else if (event.channel === 'wnms-lenson') { lensKeyDown = true; openLens(user.id, hostPoint); }
-    else if (event.channel === 'wnms-lensoff') { lensKeyDown = false; closeLens(); }
-    else if (event.channel === 'wnms-lensmove') {
-      lastPointer.set(user.id, hostPoint);
-      if (lensKeyDown && !lens) openLens(user.id, hostPoint);
-      else moveLens(hostPoint);
-    }
   });
 
   webview.addEventListener('dom-ready', () => {
@@ -978,8 +1025,6 @@ function createTile(user, state) {
     // Nach einem Neuladen ist die eingefügte CSS weg – "Nur Video" nachziehen
     tile.cleanKey = null;
     if (tile.view !== 'full') applyView(tile, tile.view, { force: true, quiet: true });
-    try { webview.send('wnms-track', tile.id === focusedId); } catch (err) {}
-    if (lens && lens.tileId === tile.id) sendLensMode(tile, true);
   });
 
   webview.addEventListener('did-navigate', () => updateLiveState(tile));
@@ -1247,221 +1292,6 @@ function renderLot(tile) {
   if (ship) parts.push('heute schon ' + ship.count + ' Zuschlag' + (ship.count > 1 ? 'e' : '') + ' – Versand läuft');
   tile.lotBar.title = parts.join(' · ');
 }
-/* ================= Lupe (nur in der Großansicht) =================
- *
- * Solange die Lupentaste gedrueckt ist, schwebt ueber der grossen Kachel ein
- * Glas, das dem Zeiger folgt. Die Kachel ist ein eigener Browser-View - der
- * Wirt kann ihren Inhalt also nicht einfach vergroessert nachzeichnen.
- * Stattdessen wird genau der Ausschnitt unter dem Glas abfotografiert
- * (capturePage mit Rechteck) und vergroessert eingesetzt.
- *
- * Der wunde Punkt einer gehaltenen Taste ist das Loslassen: Wandert der
- * Tastaturfokus dazwischen weg - von der Kachelseite ins App-Fenster, vom
- * Fenster in ein anderes Programm -, kommt das keyup nie an und die Lupe bliebe
- * stehen. Dagegen stehen drei Dinge:
- *
- *   1. Kachelseite und App-Fenster ziehen den Tastenzustand bei *jedem*
- *      Ereignis nach (getModifierState), nicht nur beim keyup.
- *   2. Jeder Fokusverlust beendet sie.
- *   3. Ein Waechter sieht regelmaessig nach, ob die Voraussetzungen ueberhaupt
- *      noch stimmen - fokussierte Kachel, Fenster im Vordergrund, Taste liegt.
- */
-
-// Die zuletzt eingestellte Lupe wieder aufnehmen
-let lensSize = clampLensSize(settings.lensSize || LENS_START_SIZE);
-let lensMag = clampLensMag(settings.lensMag || LENS_START_MAG);
-const lastPointer = new Map(); // tileId -> zuletzt gemeldete Zeigerposition
-let lensKeyDown = false;       // liegt die Lupentaste gerade?
-let lensGuard = null;
-
-function clampLensSize(value) {
-  return Math.min(LENS_MAX_SIZE, Math.max(LENS_MIN_SIZE, Math.round(Number(value) || LENS_START_SIZE)));
-}
-
-function clampLensMag(value) {
-  const step = Math.round((Number(value) || LENS_START_MAG) * 2) / 2;
-  return Math.min(LENS_MAX_MAG, Math.max(LENS_MIN_MAG, step));
-}
-
-function tileCenter(tile) {
-  const rect = tile.el.getBoundingClientRect();
-  if (!rect.width || !rect.height) return null;
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
-function sendLensMode(tile, on) {
-  try { tile.webview.send('wnms-lens', on); } catch (err) {}
-}
-
-// Nur die grosse Kachel meldet dauerhaft, wo der Zeiger steht
-function setPointerTracking() {
-  for (const [id, tile] of tiles) {
-    try { tile.webview.send('wnms-track', id === focusedId); } catch (err) {}
-  }
-}
-
-function openLens(tileId, point) {
-  if (point) lastPointer.set(tileId, point);
-  if (lens) {
-    if (lens.tileId === tileId && point) moveLens(point);
-    return;
-  }
-  if (focusedId !== tileId) return; // die Lupe gehoert in die Grossansicht
-
-  const tile = tiles.get(tileId);
-  // Ist noch nie eine Zeigerposition gemeldet worden - etwa weil die Maus seit
-  // dem Vergroessern nicht bewegt wurde -, faengt die Lupe in der Kachelmitte
-  // an. Sie springt beim ersten Wackeln an die richtige Stelle; das ist besser,
-  // als auf einen Tastendruck gar nicht zu reagieren.
-  const where = point || lastPointer.get(tileId) || (tile ? tileCenter(tile) : null);
-  if (!tile || !where) return;
-  if (typeof tile.webview.capturePage !== 'function') {
-    toast('Lupe wird von dieser Electron-Fassung nicht unterstützt');
-    return;
-  }
-
-  lens = {
-    tileId: tileId,
-    x: where.x,
-    y: where.y,
-    busy: false,
-    timer: setInterval(captureLens, LENS_FRAME_MS)
-  };
-  els.lens.hidden = false;
-  drawLens();
-  captureLens();
-  sendLensMode(tile, true);
-  startLensGuard();
-}
-
-function closeLens() {
-  lensKeyDown = false;
-  stopLensGuard();
-  if (!lens) return;
-  clearInterval(lens.timer);
-  const tile = tiles.get(lens.tileId);
-  lens = null;
-  els.lens.hidden = true;
-  els.lensImage.removeAttribute('src');
-  if (tile) sendLensMode(tile, false);
-}
-
-function moveLens(point) {
-  if (!lens) return;
-  lens.x = point.x;
-  lens.y = point.y;
-  drawLens();
-}
-
-/* Der Waechter. Er stellt keine Vermutungen an, sondern prueft die drei
- * Bedingungen, unter denen die Lupe ueberhaupt zu sehen sein darf. Faellt eine
- * weg - die Kachel ist nicht mehr gross, das Fenster nicht mehr vorn, die
- * Kachel gar nicht mehr da -, ist sofort Schluss. Damit kann sie nicht haengen
- * bleiben, auch wenn irgendwo ein Loslassen verlorengeht. */
-function startLensGuard() {
-  if (lensGuard) return;
-  lensGuard = setInterval(() => {
-    if (!lens) { stopLensGuard(); return; }
-    const gone = !tiles.has(lens.tileId) || lens.tileId !== focusedId;
-    const away = !document.hasFocus() && !lensKeyDown;
-    if (gone || away || document.hidden) closeLens();
-  }, LENS_GUARD_MS);
-}
-
-function stopLensGuard() {
-  clearInterval(lensGuard);
-  lensGuard = null;
-}
-
-function setLensSize(value, quiet) {
-  lensSize = clampLensSize(value);
-  settings.lensSize = lensSize;
-  if (!quiet) saveSettings();
-  drawLens();
-  renderLensControls();
-}
-
-function setLensMag(value, quiet) {
-  lensMag = clampLensMag(value);
-  settings.lensMag = lensMag;
-  if (!quiet) saveSettings();
-  drawLens();
-  renderLensControls();
-}
-
-function drawLens() {
-  if (!lens) return;
-  const stage = els.stage.getBoundingClientRect();
-  els.lens.style.width = lensSize + 'px';
-  els.lens.style.height = lensSize + 'px';
-  els.lens.style.left = (lens.x - stage.left - lensSize / 2) + 'px';
-  els.lens.style.top = (lens.y - stage.top - lensSize / 2) + 'px';
-  els.lensLabel.textContent = lensMag.toFixed(1).replace('.', ',') + '×';
-}
-
-// Nur der benoetigte Bereich wird abfotografiert, nicht die ganze Seite -
-// das haelt die Sache bezahlbar.
-async function captureLens() {
-  if (!lens || lens.busy) return;
-  const tile = tiles.get(lens.tileId);
-  if (!tile) { closeLens(); return; }
-
-  lens.busy = true;
-  try {
-    const rect = tile.webview.getBoundingClientRect();
-    const src = Math.max(24, Math.round(lensSize / lensMag));
-    const maxX = Math.max(0, Math.round(rect.width) - src);
-    const maxY = Math.max(0, Math.round(rect.height) - src);
-    const area = {
-      x: Math.min(Math.max(0, Math.round(lens.x - rect.left - src / 2)), maxX),
-      y: Math.min(Math.max(0, Math.round(lens.y - rect.top - src / 2)), maxY),
-      width: src,
-      height: src
-    };
-    const shot = await tile.webview.capturePage(area);
-    if (lens) els.lensImage.src = shot.toDataURL();
-  } catch (err) { /* Kachel gerade nicht greifbar */ }
-  if (lens) lens.busy = false;
-}
-
-/* ---- Der Lupenknopf in der Großansicht ----
- * Ein Klick zeigt, auf welcher Taste die Lupe liegt, und laesst Glasgroesse und
- * Vergroesserung einstellen - dafuer gab es frueher das Mausrad. */
-
-function renderLensControls() {
-  const sizeText = lensSize + ' px';
-  const magText = lensMag.toFixed(1).replace('.', ',') + '×';
-
-  if (els.lensPopSize) els.lensPopSize.value = String(lensSize);
-  if (els.lensPopMag) els.lensPopMag.value = String(lensMag);
-  if (els.lensPopSizeOut) els.lensPopSizeOut.textContent = sizeText;
-  if (els.lensPopMagOut) els.lensPopMagOut.textContent = magText;
-
-  if (els.optLensSize) els.optLensSize.value = String(lensSize);
-  if (els.optLensMag) els.optLensMag.value = String(lensMag);
-  if (els.optLensSizeOut) els.optLensSizeOut.textContent = sizeText;
-  if (els.optLensMagOut) els.optLensMagOut.textContent = magText;
-}
-
-function openLensPop(anchor) {
-  renderLensControls();
-  els.lensPop.hidden = false;
-  const box = anchor.getBoundingClientRect();
-  const pop = els.lensPop.getBoundingClientRect();
-  const left = Math.min(box.left + box.width / 2 - pop.width / 2, window.innerWidth - pop.width - 8);
-  els.lensPop.style.left = Math.max(8, left) + 'px';
-  els.lensPop.style.top = Math.min(box.bottom + 8, window.innerHeight - pop.height - 8) + 'px';
-}
-
-function closeLensPop() {
-  els.lensPop.hidden = true;
-}
-
-function toggleLensPop(anchor) {
-  if (els.lensPop.hidden) openLensPop(anchor);
-  else closeLensPop();
-}
-
 /* ================= Zustand -> Raster ================= */
 
 // Angezeigt wird, wer gerade live und nicht versteckt ist.
@@ -1482,8 +1312,6 @@ function syncTiles() {
 
   for (const [id, tile] of tiles) {
     if (wantedIds.has(id)) continue;
-    if (lens && lens.tileId === id) closeLens();
-    lastPointer.delete(id);
     tile.el.remove();
     tiles.delete(id);
     if (unmutedId === id) unmutedId = null;
@@ -1539,14 +1367,54 @@ function bestColumns(n, aspect) {
   return best;
 }
 
-// Massstab so waehlen, dass die Seite in der Kachel genau TILE_BASE_WIDTH
-// logische Pixel breit ist. Die Kachel ist im Handy-Format, also ergibt sich
-// die Hoehe von selbst - die Seite sieht in jeder Kachelgroesse gleich aus.
+/* Massstab so waehlen, dass die Seite in der Kachel genau `tileBase` logische
+ * Pixel breit ist. Die Kachel ist im Handy-Format, also ergibt sich die Hoehe
+ * von selbst - die Seite sieht in jeder Kachelgroesse gleich aus.
+ *
+ * `tileBase` ist zugleich der Regler "Video gegen Oberflaeche": Eine kleinere
+ * Breite heisst mehr Zoom - die Seite wird groesser gezeigt, das Videobild
+ * fuellt mehr Kachel, vom Chat darunter ist weniger zu sehen. Eine groessere
+ * Breite packt mehr Oberflaeche hinein und macht das Bild kleiner.
+ */
 function setPreviewZoom(tileWidth) {
-  const next = Math.min(MAX_PREVIEW_ZOOM, Math.max(MIN_PREVIEW_ZOOM, tileWidth / TILE_BASE_WIDTH));
+  const next = Math.min(MAX_PREVIEW_ZOOM, Math.max(MIN_PREVIEW_ZOOM, tileWidth / tileBase));
   if (Math.abs(next - previewZoom) < 0.01) return;
   previewZoom = next;
   for (const tile of tiles.values()) applyZoom(tile);
+}
+
+function clampTileBase(value) {
+  const step = Math.round((Number(value) || TILE_BASE_DEFAULT) / 20) * 20;
+  return Math.min(TILE_BASE_MAX, Math.max(TILE_BASE_MIN, step));
+}
+
+// Der Regler wirkt sofort, damit man sieht, was man einstellt. Geschrieben wird
+// erst, wenn er zur Ruhe kommt - jede Stufe zwingt die Seiten zum Neuaufbau.
+let tileBaseTimer = null;
+
+function setTileBase(value, save) {
+  const next = clampTileBase(value);
+  if (next !== tileBase) {
+    tileBase = next;
+    previewZoom = 0; // Neuberechnung erzwingen, die Schwelle in setPreviewZoom sonst nicht
+    layout();
+  }
+  renderTileBase();
+  if (!save) return;
+  clearTimeout(tileBaseTimer);
+  tileBaseTimer = setTimeout(() => {
+    settings.tileBase = tileBase;
+    saveSettings();
+  }, 400);
+}
+
+function renderTileBase() {
+  if (!els.optTileBase) return;
+  els.optTileBase.value = String(tileBase);
+  // Als Verhaeltnis zum Ausgangswert - das sagt mehr als eine Pixelzahl
+  const anteil = Math.round((TILE_BASE_DEFAULT / tileBase) * 100);
+  els.optTileBaseOut.textContent = anteil + ' %';
+  els.optTileBaseOut.title = 'Seitenbreite in der Kachel: ' + tileBase + ' px';
 }
 
 function setTileSize(width, height) {
@@ -1605,8 +1473,6 @@ function layout() {
     // Chat und Oberflaeche lassen sich nur im Raster umschalten - in der
     // Grossansicht sind sie immer da, der Knopf haette dort nichts zu tun.
     tile.viewBtn.hidden = isFocused;
-    // Die Lupe gibt es nur in der Grossansicht, also auch ihr Knopf nur dort
-    tile.lensBtn.hidden = !isFocused;
   }
 
   // Derselbe Grund fuer den Knopf oben: er stellt das Raster ein
@@ -1850,8 +1716,6 @@ function applyFocusState(id) {
   if (id && !focusedId) unmutedBeforeFocus = unmutedId;
   const before = focusedId;
   focusedId = id;
-  closeLens();     // die Lupe gehoert immer nur zur gerade grossen Kachel
-  closeLensPop();
 
   /* In der Grossansicht sind Chat und Oberflaeche da - dort will man bieten,
    * lesen und schreiben. Das ueberschreibt aber nicht, was fuer das Raster
@@ -1868,7 +1732,6 @@ function applyFocusState(id) {
 
   layout();
   for (const tile of tiles.values()) applyZoom(tile);
-  setPointerTracking();
   if (id) {
     setUnmuted(id);
   } else {
@@ -1911,8 +1774,6 @@ async function setFocus(id) {
   }, MORPH_MAX_MS);
 
   try {
-    closeLens(); // die Lupe gehoert nicht in den Uebergang
-
     const from = stageBox(tile.el);
     const shot = await shootTile(tile);
     if (!morphAlive(token, tile)) return;
@@ -2208,6 +2069,197 @@ function renderUserList() {
   }
 }
 
+/* ================= Neue Streams entdecken =================
+ *
+ * Zeigt, was gerade auf der eigenen Whatnot-Startseite laeuft, und nimmt den
+ * Verkaeufer auf Klick in die Liste auf. Gelesen wird ueber denselben
+ * Pruefhelfer wie die Live-Erkennung - der liegt ohnehin angemeldet auf
+ * whatnot.com, und die Warteschlange sorgt dafuer, dass sich beides nicht in
+ * die Quere kommt.
+ */
+const DISCOVER_FRESH_MS = 90000; // so lange gilt eine geholte Liste als frisch
+
+let discoverShows = [];
+let discoverError = '';
+let discoverBusy = false;
+let discoverAt = 0;
+
+async function loadDiscover(force) {
+  if (discoverBusy || locked) return;
+  if (!force && discoverShows.length && Date.now() - discoverAt < DISCOVER_FRESH_MS) {
+    renderDiscover();
+    return;
+  }
+
+  discoverBusy = true;
+  renderDiscover();
+
+  let out = null;
+  try {
+    if (await whenCheckerReady()) {
+      out = await queued(() => els.checker.executeJavaScript(discoverProbeJs(), true));
+    } else {
+      out = { ok: false, error: 'Pruef-Fenster nicht bereit' };
+    }
+  } catch (err) {
+    out = { ok: false, error: String((err && err.message) || err) };
+  }
+
+  discoverBusy = false;
+  if (out && out.ok) {
+    discoverShows = out.shows || [];
+    discoverAt = Date.now();
+    discoverError = '';
+  } else {
+    discoverError = (out && out.error) || 'Startseite konnte nicht gelesen werden';
+  }
+  renderDiscover();
+}
+
+function isKnownUser(username) {
+  const key = String(username || '').toLowerCase();
+  return users.some((user) => user.username.toLowerCase() === key);
+}
+
+function discoverCard(show) {
+  const known = isKnownUser(show.username);
+
+  // Bewusst kein <button>: Als Rasterelement gibt ein Knopf die Hoehe seines
+  // Inhalts nicht an die Zeile weiter - die Karten fielen auf die Hoehe der
+  // Beschriftung zusammen und das Vorschaubild war abgeschnitten.
+  const card = document.createElement('div');
+  card.className = 'discover-card' + (known ? ' known' : '');
+  card.title = known
+    ? show.username + ' steht schon in deiner Liste'
+    : show.username + ' zur Liste hinzufügen';
+  if (!known) {
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+  }
+
+  const thumb = document.createElement('div');
+  thumb.className = 'discover-thumb';
+  if (show.thumb) {
+    const img = document.createElement('img');
+    img.src = show.thumb;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.addEventListener('error', () => img.remove());
+    thumb.appendChild(img);
+  } else {
+    thumb.appendChild(icon('fa-video'));
+  }
+  const live = document.createElement('span');
+  live.className = 'discover-live';
+  live.textContent = show.viewers ? 'Live · ' + show.viewers : 'Live';
+  thumb.appendChild(live);
+
+  const meta = document.createElement('div');
+  meta.className = 'discover-meta';
+
+  const nameLine = document.createElement('span');
+  nameLine.className = 'discover-name';
+  nameLine.append(avatarFor({ username: show.username, avatar: show.avatar }));
+  const name = document.createElement('strong');
+  name.textContent = show.username;
+  nameLine.appendChild(name);
+
+  const title = document.createElement('span');
+  title.className = 'discover-title';
+  title.textContent = show.title || '';
+  title.title = show.title || '';
+
+  const action = document.createElement('span');
+  action.className = 'discover-add';
+  action.append(icon(known ? 'fa-check' : 'fa-plus'),
+                document.createTextNode(known ? ' Schon dabei' : ' Hinzufügen'));
+
+  meta.append(nameLine, title, action);
+  card.append(thumb, meta);
+
+  function nimm() {
+    if (isKnownUser(show.username)) return;
+    const result = addUsers(show.username, false);
+    if (result.added.length) toast(show.username + ' hinzugefügt – die Kachel kommt gleich');
+    else if (result.full) toast('Die Liste ist voll (höchstens ' + MAX_USERS + ')');
+    renderDiscover();
+  }
+
+  card.addEventListener('click', nimm);
+  card.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    nimm();
+  });
+
+  return card;
+}
+
+function renderDiscover() {
+  els.discoverReload.disabled = discoverBusy;
+  els.discoverList.replaceChildren();
+
+  if (discoverBusy) {
+    els.discoverInfo.textContent = 'Hole die Startseite …';
+    const wait = document.createElement('p');
+    wait.className = 'panel-hint';
+    // Beide teilen sich denselben Pruefhelfer - laeuft gerade eine Live-Runde,
+    // kommt die Startseite erst danach dran. Das soll nicht wie ein Hänger wirken.
+    wait.textContent = checking > 0
+      ? 'Einen Moment – erst läuft noch die Live-Prüfung zu Ende.'
+      : 'Einen Moment – die Startseite ist groß.';
+    els.discoverList.appendChild(wait);
+    return;
+  }
+
+  if (discoverError) {
+    els.discoverInfo.textContent = '';
+    const hint = document.createElement('p');
+    hint.className = 'panel-hint err';
+    hint.textContent = 'Ging nicht: ' + discoverError
+      + (accountApi && !account.loggedIn ? ' – ohne Anmeldung zeigt Whatnot hier nichts.' : '');
+    els.discoverList.appendChild(hint);
+    return;
+  }
+
+  if (!discoverShows.length) {
+    els.discoverInfo.textContent = '';
+    const hint = document.createElement('p');
+    hint.className = 'panel-hint';
+    hint.textContent = 'Auf deiner Startseite läuft gerade nichts.';
+    els.discoverList.appendChild(hint);
+    return;
+  }
+
+  const neu = discoverShows.filter((show) => !isKnownUser(show.username)).length;
+  const zeit = new Date(discoverAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  els.discoverInfo.textContent = discoverShows.length + ' live · ' + neu + ' noch nicht in deiner Liste · Stand ' + zeit;
+
+  for (const show of discoverShows) els.discoverList.appendChild(discoverCard(show));
+}
+
+/* ---- Die beiden Reiter des Shows-Fensters ---- */
+
+let showsTab = 'list';
+
+function showShowsTab(tab) {
+  showsTab = tab === 'discover' ? 'discover' : 'list';
+  for (const button of els.showsTabs.querySelectorAll('[data-shows-tab]')) {
+    button.classList.toggle('on', button.dataset.showsTab === showsTab);
+  }
+  for (const page of els.panel.querySelectorAll('[data-shows-page]')) {
+    page.hidden = page.dataset.showsPage !== showsTab;
+  }
+  if (showsTab === 'discover') loadDiscover();
+}
+
+els.showsTabs.addEventListener('click', (e) => {
+  const button = e.target.closest('[data-shows-tab]');
+  if (button) showShowsTab(button.dataset.showsTab);
+});
+
+els.discoverReload.addEventListener('click', () => loadDiscover(true));
+
 /* ================= Versteckte Live-Streams ================= */
 
 function updateHiddenButton() {
@@ -2308,11 +2360,12 @@ function toast(text) {
 
 /* ================= Bedienelemente ================= */
 
-function openPanel() {
+function openPanel(tab) {
   els.panel.hidden = false;
   renderUserList();
   updateCheckInfo();
-  els.userInput.focus();
+  showShowsTab(tab || showsTab);
+  if (showsTab === 'list') els.userInput.focus();
 }
 
 function closePanel() {
@@ -2432,7 +2485,6 @@ els.menu.addEventListener('click', (e) => {
 document.addEventListener('mousedown', (e) => {
   if (!els.menu.hidden && !els.menu.contains(e.target)) closeTileMenu();
   if (!els.hiddenPop.hidden && !els.hiddenPop.contains(e.target) && !els.hiddenBtn.contains(e.target)) closeHiddenPop();
-  if (!els.lensPop.hidden && !els.lensPop.contains(e.target)) closeLensPop();
 });
 
 // Loslassen und Ziehen außerhalb der Kachelseiten (z. B. auf der Kopfzeile)
@@ -2443,44 +2495,9 @@ document.addEventListener('mouseup', (e) => {
   if (e.button === 2 && rightPress) endRightPress({ x: e.clientX, y: e.clientY });
 });
 
-// Die Lupentaste auch dann auswerten, wenn die Tastatur beim App-Fenster liegt
-// und nicht bei der Kachelseite - sonst haenge die Lupe davon ab, wo zuletzt
-// geklickt wurde. Bei jedem Ereignis wird zugleich nachgezogen, ob die Taste
-// ueberhaupt noch liegt; auf ein keyup allein ist kein Verlass.
-function syncLensKey(event) {
-  const down = event && event.getModifierState ? event.getModifierState(LENS_KEY) : false;
-  if (down && focusedId) {
-    lensKeyDown = true;
-    if (!lens) openLens(focusedId, null);
-  } else if (!down) {
-    lensKeyDown = false;
-    if (lens) closeLens();
-  }
-}
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === LENS_KEY) {
-    e.preventDefault(); // Alt wuerde sonst den naechsten Tastendruck verschlucken
-    lensKeyDown = true;
-    if (focusedId) openLens(focusedId, null);
-    return;
-  }
-  syncLensKey(e);
-}, true);
-
-document.addEventListener('keyup', (e) => {
-  if (e.key === LENS_KEY) { closeLens(); return; }
-  syncLensKey(e);
-}, true);
-
-document.addEventListener('mousemove', syncLensKey, true);
-window.addEventListener('blur', closeLens);
-document.addEventListener('visibilitychange', () => { if (document.hidden) closeLens(); });
-
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!els.menu.hidden) closeTileMenu();
-  else if (!els.lensPop.hidden) closeLensPop();
   else if (!els.hiddenPop.hidden) closeHiddenPop();
   else if (!els.settingsPanel.hidden) closeSettings();
   else if (!els.panel.hidden) closePanel();
@@ -2745,8 +2762,6 @@ function lockDown() {
   if (locked) return;
   locked = true;
 
-  closeLens();
-  closeLensPop();
   closeTileMenu();
   closeHiddenPop();
   closePanel();
@@ -2816,8 +2831,7 @@ function renderSettings() {
   els.optView.value = VIEW_LOOK[settings.view] ? settings.view : 'full';
   els.optShowLot.checked = settings.showLot !== false;
   els.optShowTotal.checked = settings.showTotal !== false;
-  els.lensKeyHint.textContent = LENS_KEY_LABEL;
-  renderLensControls();
+  renderTileBase();
   renderAccount();
   renderAbout();
 }
@@ -2862,11 +2876,8 @@ els.optShowTotal.addEventListener('change', () => {
   for (const tile of tiles.values()) renderLot(tile);
 });
 
-els.optLensSize.addEventListener('input', () => setLensSize(els.optLensSize.value));
-els.optLensMag.addEventListener('input', () => setLensMag(els.optLensMag.value));
-els.lensPopSize.addEventListener('input', () => setLensSize(els.lensPopSize.value));
-els.lensPopMag.addEventListener('input', () => setLensMag(els.lensPopMag.value));
-els.lensPop.addEventListener('mousedown', (e) => e.stopPropagation());
+els.optTileBase.addEventListener('input', () => setTileBase(els.optTileBase.value, true));
+els.optTileBaseReset.addEventListener('click', () => setTileBase(TILE_BASE_DEFAULT, true));
 
 els.optSetupAgain.addEventListener('click', () => {
   closeSettings();
@@ -3053,8 +3064,7 @@ if (window.wnms && window.wnms.info) {
 
 els.cols.value = settings.cols;
 renderViewAll();
-renderLensControls();
-els.lensPopKey.textContent = LENS_KEY_LABEL;
+renderTileBase();
 els.meInput.value = settings.me || '';
 renderAccount();
 
