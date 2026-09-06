@@ -407,13 +407,19 @@ webview {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 23px;
-  padding: 3px 7px;
+  /* Feste Höhe: eine mitwachsende Leiste (ein- oder zweizeilig, je nachdem ob
+     Versandkosten bekannt sind) gäbe jeder Kachel eine andere Videohöhe. */
+  height: var(--lot-h, 30px);
+  padding: 0 7px;
   background: #0d1015;
   border-top: 1px solid var(--border);
   font-size: 11px;
   line-height: 1.15;
 }
+
+/* Gerade nichts unter dem Hammer - der Streifen bleibt trotzdem stehen,
+   damit die Kachelhöhe nicht bei jedem Zuschlag springt. */
+.tile-lot.leer { opacity: .35; }
 
 .lot-title {
   flex: 1 1 0;

@@ -26,6 +26,12 @@ const LIVE_STATUS = /^(PLAYING|LIVE|ACTIVE|STARTED|STREAMING)$/i;
 // Seite im schmalen Fenster ihr Handy-Layout mit Video und Chat.
 const PORTRAIT_ASPECT = 9 / 16;
 const TILE_GAP = 6;
+// Feste Hoehe der Los-Leiste. Sie kommt zur Videoflaeche *hinzu*, statt von ihr
+// abzugehen - sonst waere die Seite flacher als 9:16, das Video passte sich der
+// kuerzeren Flaeche an und liesse links und rechts Schwarz stehen. Fest, weil
+// eine mitwachsende Leiste (ein- oder zweizeilig, je nach Versandangabe) jeder
+// Kachel eine andere Videohoehe gaebe.
+const LOT_BAR_H = 30;
 
 // Jede Vorschaukachel zeigt die Seite mit immer derselben logischen Breite; die
 // Kachelgroesse bestimmt nur den Massstab. Damit bleibt das Verhaeltnis von Chat
@@ -661,10 +667,21 @@ function queued(fn) {
   return run;
 }
 
+/* Das Pruef-Fenster zurueck auf seinen Ruheplatz schicken.
+ *
+ * Das gehoert in die Warteschlange und muss abgewartet werden: Eine Navigation
+ * bricht alles ab, was in der Seite gerade laeuft. Stand die Rueckfahrt nur auf
+ * einem Timer, fiel sie mitten in die naechste Anfrage - die brach dann mit
+ * "The user aborted a request" ab, obwohl mit ihr nichts war. */
 function backToHome() {
-  setTimeout(() => {
-    try { els.checker.loadURL(CHECKER_HOME); } catch (err) {}
-  }, 200);
+  queued(async () => {
+    await sleep(200);
+    try { els.checker.loadURL(CHECKER_HOME); } catch (err) { return; }
+    for (let i = 0; i < 50; i++) {
+      await sleep(100);
+      try { if (!els.checker.isLoading()) return; } catch (err) { return; }
+    }
+  });
 }
 
 // Reserveweg: Profil wirklich laden und die gerenderte Seite ansehen.
@@ -1250,8 +1267,15 @@ function totalWithShipping(tile, lot) {
 function renderLot(tile) {
   const lot = tile.lot;
   const ship = shippingOf(tile.id);
-  tile.lotBar.hidden = !settings.showLot || (!lot && !ship);
+
+  /* Die Leiste bleibt stehen, auch wenn gerade nichts unter dem Hammer ist.
+   * Wuerde sie kommen und gehen, aendert sich jedes Mal die Hoehe der
+   * Videoflaeche darueber - das Raster zuckte bei jedem Zuschlag, und die
+   * Kacheln haetten untereinander verschieden grosse Bilder. */
+  tile.lotBar.hidden = settings.showLot === false;
   if (tile.lotBar.hidden) return;
+
+  tile.lotBar.classList.toggle('leer', !lot && !ship);
 
   tile.lotShip.hidden = !ship;
   if (ship) {
@@ -1347,17 +1371,23 @@ function syncTiles() {
   layout();
 }
 
+// Platz, den die Los-Leiste je Kachel beansprucht
+function lotBarHeight() {
+  return settings.showLot === false ? 0 : LOT_BAR_H;
+}
+
 // Sucht die Spaltenzahl, bei der das (hochkante) Streambild am groessten wird.
 function bestColumns(n, aspect) {
   const stageW = els.grid.clientWidth || 1200;
   const stageH = els.grid.clientHeight || 700;
+  const bar = lotBarHeight();
   let best = 1;
   let bestArea = -1;
 
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols);
     const cellW = stageW / cols - TILE_GAP;
-    const cellH = stageH / rows - TILE_GAP;
+    const cellH = stageH / rows - TILE_GAP - bar; // die Leiste gehoert nicht zum Bild
     if (cellW <= 0 || cellH <= 0) continue;
     // Groesse des Videos, das in diese Kachel passt
     const w = Math.min(cellW, cellH * aspect);
@@ -1420,6 +1450,7 @@ function renderTileBase() {
 function setTileSize(width, height) {
   els.grid.style.setProperty('--tile-w', Math.max(80, Math.floor(width)) + 'px');
   els.grid.style.setProperty('--tile-h', Math.max(140, Math.floor(height)) + 'px');
+  els.grid.style.setProperty('--lot-h', lotBarHeight() + 'px');
 }
 
 function layout() {
@@ -1444,21 +1475,26 @@ function layout() {
   const stageH = els.grid.clientHeight || 700;
   const cellW = (stageW - (cols + 1) * TILE_GAP) / cols;
 
+  // Die Los-Leiste sitzt unter der Seite und bekommt ihre Hoehe zusaetzlich -
+  // so bleibt die Flaeche darueber genau im Handy-Format und das Video fuellt
+  // sie ohne schwarze Raender.
+  const bar = lotBarHeight();
+
   if (manual) {
     // Feste Spaltenzahl: Kachel füllt die Spalte, Höhe folgt dem Handy-Format.
     // Passt nicht alles ins Fenster, wird gescrollt.
-    const tileH = Math.max(160, cellW / PORTRAIT_ASPECT);
+    const tileH = Math.max(160, cellW / PORTRAIT_ASPECT) + bar;
     els.grid.style.gridTemplateRows = '';
     els.grid.style.gridAutoRows = tileH + 'px';
     if (!focusedId) { setTileSize(cellW, tileH); setPreviewZoom(cellW); }
   } else {
     const cellH = (stageH - (rows + 1) * TILE_GAP) / rows;
-    const tileW = Math.min(cellW, cellH * PORTRAIT_ASPECT);
+    const tileW = Math.min(cellW, (cellH - bar) * PORTRAIT_ASPECT);
     els.grid.style.gridAutoRows = '';
     els.grid.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
     // Im Fokus bleibt --tile-w/h auf der Vorschaugroesse stehen: die abgelegten
     // Kacheln behalten damit ihre Masse und bauen ihr Layout nicht um.
-    if (!focusedId) { setTileSize(tileW, tileW / PORTRAIT_ASPECT); setPreviewZoom(tileW); }
+    if (!focusedId) { setTileSize(tileW, tileW / PORTRAIT_ASPECT + bar); setPreviewZoom(tileW); }
   }
   // Im Raster Handy-Format, im Fokus die volle Fensterfläche (Desktop-Ansicht)
   els.grid.classList.toggle('portrait', !focusedId);
@@ -2095,14 +2131,20 @@ async function loadDiscover(force) {
   renderDiscover();
 
   let out = null;
-  try {
-    if (await whenCheckerReady()) {
-      out = await queued(() => els.checker.executeJavaScript(discoverProbeJs(), true));
-    } else {
-      out = { ok: false, error: 'Pruef-Fenster nicht bereit' };
+  if (await whenCheckerReady()) {
+    // Ein Versuch darf schiefgehen: Navigiert das Pruef-Fenster im selben
+    // Augenblick, bricht die laufende Anfrage ab. Dann eben gleich noch einmal.
+    for (let versuch = 0; versuch < 2; versuch++) {
+      try {
+        out = await queued(() => els.checker.executeJavaScript(discoverProbeJs(), true));
+      } catch (err) {
+        out = { ok: false, error: String((err && err.message) || err) };
+      }
+      if (out && out.ok) break;
+      if (versuch === 0) await sleep(800);
     }
-  } catch (err) {
-    out = { ok: false, error: String((err && err.message) || err) };
+  } else {
+    out = { ok: false, error: 'Pruef-Fenster nicht bereit' };
   }
 
   discoverBusy = false;
@@ -2872,6 +2914,7 @@ els.optShowLot.addEventListener('change', () => {
   settings.showLot = els.optShowLot.checked;
   saveSettings();
   for (const tile of tiles.values()) renderLot(tile);
+  layout(); // die Leiste zaehlt zur Kachelhoehe
 });
 
 els.optShowTotal.addEventListener('change', () => {

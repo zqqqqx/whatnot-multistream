@@ -155,8 +155,14 @@ Kacheln lesbar, statt mitzuschrumpfen. Sie liegt **nicht über** der Seite,
 sondern bekommt eigenen Platz unter ihr: Als Überlagerung stand sie zwangsläufig
 über Whatnots eigener Bedienung – unten über der Produktkarte und dem gelben
 Gebots-Knopf, oben über Name und „Folgen“ –, und zwei Schriften übereinander
-liest niemand. Jetzt wird die Seite in der Kachel um diese knapp 30 Pixel kürzer
-gezeichnet, und nichts überlappt mehr.
+liest niemand.
+
+Ihre 30 Pixel kommen zur Videofläche **hinzu**, statt von ihr abzugehen: Die
+Fläche darüber behält damit genau das Hochformat der Streams, und das Bild füllt
+sie ohne schwarze Ränder an den Seiten. Aus demselben Grund ist die Höhe fest und
+die Zeile bleibt auch zwischen zwei Losen stehen – eine mitwachsende oder
+verschwindende Leiste gäbe jeder Kachel eine andere Bildhöhe, und das Raster
+zuckte bei jedem Zuschlag.
 
 Gelesen wird direkt in der Kachel, im Takt von 0,7 Sekunden, und gemeldet wird
 nur, wenn sich etwas geändert hat. Die Show-Oberfläche hat dafür benannte
