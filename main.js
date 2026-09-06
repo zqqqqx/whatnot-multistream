@@ -4,6 +4,7 @@ const { autoUpdater } = require('electron-updater');
 
 const store = require('./store.js');
 const account = require('./account.js');
+const bans = require('./bans.js');
 
 // Streams sollen ohne Klick starten
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -266,6 +267,16 @@ ipcMain.handle('wnms-account-login', async () => {
   return account.openLogin(win, PARTITION);
 });
 
+/* Die Sperrliste liegt im Netz, nicht in der App (siehe bans.js). Sie wird beim
+ * Start und danach halbstuendlich geholt und das eigene Konto jedes Mal neu
+ * dagegen gehalten: Eintragen und Streichen wirkt damit im laufenden Betrieb,
+ * ohne dass jemand eine neue Fassung installieren muss. */
+function watchBans() {
+  const look = () => { account.recheck().catch(() => { /* beim naechsten Mal wieder */ }); };
+  setTimeout(look, 4000);           // nicht ins Startgedraenge
+  setInterval(look, bans.REFRESH_MS);
+}
+
 /* ================= Kleinkram ================= */
 
 // Zwischenablage: nur Text, und nur was der Renderer selbst zusammengestellt hat
@@ -313,6 +324,7 @@ app.whenReady().then(() => {
   prepareSession(session.defaultSession);
   createWindow();
   setupUpdater();
+  watchBans();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

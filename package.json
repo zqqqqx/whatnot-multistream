@@ -32,7 +32,6 @@
       "store.js",
       "bans.js",
       "account.js",
-      "banned-users.json",
       "preload-main.js",
       "preload-tile.js",
       "renderer.js",

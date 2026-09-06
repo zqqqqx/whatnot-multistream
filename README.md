@@ -201,22 +201,51 @@ Hintergrund von allein nachgezogen wird. Der Stand steht unter
 ## Ausgeschlossene Konten
 
 Bestimmte Whatnot-Konten können von der Nutzung ausgeschlossen werden. Die Liste
-dafür (`banned-users.json`) enthält **keine Klarnamen**, sondern nur den
-SHA-256-Abdruck des normalisierten Usernamens – wer die Datei in die Hände
-bekommt, erfährt daraus nicht, um wen es geht. Normalisiert wird immer gleich:
-Leerraum weg, führendes `@` weg, alles klein; `  @Foo ` und `foo` ergeben also
-denselben Abdruck. Einen Abdruck bildet `node tools/ban-hash.js <name>`.
+dafür enthält **keine Klarnamen**, sondern nur den SHA-256-Abdruck des
+normalisierten Usernamens – wer sie in die Hände bekommt, erfährt daraus nicht,
+um wen es geht. Normalisiert wird immer gleich: Leerraum weg, führendes `@` weg,
+alles klein; `  @Foo ` und `foo` ergeben also denselben Abdruck.
 
-Geprüft wird nach jeder erkannten Anmeldung **und** bei jeder Live-Prüfung. Ein
-Treffer legt die App still: keine Kacheln, keine Prüfung, ein Hinweis, dass dieses
-Konto nicht zur Nutzung berechtigt ist. Der Vermerk steht in der Ablage, greift
-also beim nächsten Start sofort wieder – abmelden, neu starten oder sich erneut
-anmelden hilft nicht. Gelöst wird er nur, wenn ein **anderes**, nicht gesperrtes
-Konto erkannt wird.
+### Wo die Liste liegt
 
-Woher die Liste kommt, steckt allein in `readSources()` in `bans.js`. Soll sie
-später aus dem Netz kommen, wird dort eine weitere Quelle eingehängt; der Rest der
-App kennt nur `isBanned()` und merkt davon nichts.
+Sie liegt **im Netz, nicht in der App**:
+
+```
+https://raw.githubusercontent.com/zqqqqx/whatnot-multistream/main/banned-users.json
+```
+
+Das ist der entscheidende Punkt. Läge sie im Installer, würde eine Sperre erst
+greifen, wenn der Betroffene freiwillig eine neue Fassung einspielt – und genau
+das wird er nicht tun. So fragt stattdessen jeder Client alle **30 Minuten**
+nach; eintragen und streichen wirkt damit im laufenden Betrieb, ohne Release.
+
+### Jemanden sperren
+
+1. Abdruck bilden: `node tools/ban-hash.js <username>`
+2. Den Abdruck in `banned-users.json` unter `hashes` eintragen – geht auch
+   direkt über die Bearbeiten-Funktion auf GitHub.
+3. Fertig. Innerhalb einer halben Stunde greift es überall; wer die App neu
+   startet, ist sofort dran.
+
+Streichen hebt die Sperre auf demselben Weg wieder auf.
+
+### Was passiert
+
+Geprüft wird nach jeder erkannten Anmeldung, bei jeder Live-Prüfung und bei
+jedem halbstündlichen Abgleich. Ein Treffer legt die App still: keine Kacheln,
+keine Prüfung, ein Hinweis, dass dieses Konto nicht zur Nutzung berechtigt ist.
+Wird jemand wieder gestrichen, baut sich das Fenster beim nächsten Abgleich von
+selbst neu auf.
+
+Der zuletzt geholte Stand bleibt im Datenordner liegen. Das ist kein
+Zwischenspeicher aus Bequemlichkeit, sondern der Grund, warum sich eine Sperre
+nicht durch Netzstecker aushebeln lässt: Ist die Liste gerade nicht erreichbar,
+gilt die zuletzt bekannte. Umgekehrt entsteht ohne Liste auch keine neue Sperre –
+zwischen „steht nicht drin" und „weiß ich nicht" wird unterschieden.
+
+Woher die Liste kommt, steckt allein in `bans.js`. Eine zweite Quelle – etwa ein
+eigener Server – ließe sich dort einhängen, ohne dass der Rest der App etwas
+davon merkt; er kennt nur `status()`.
 
 ## Einrichtung beim ersten Start
 
@@ -332,6 +361,7 @@ Darin steht alles, was du einstellst, und es steht beim nächsten Start wieder d
 | **Ansicht je Kachel** (ganze Seite / ohne Chat / nur Video) | je Streamer, gilt auch nach einem Neuaufbau der Kachel |
 | Ansicht für alle, Spaltenzahl, eigener Username | allgemeine Einstellungen |
 | **Erkanntes Konto und Sperrvermerk** | schreibt der Hauptprozess, nicht das Fenster |
+| **Zuletzt geholte Sperrliste** | damit eine Sperre auch ohne Netz gilt |
 | **Fortschritt der Einrichtung** | Schritt und ob sie abgeschlossen ist |
 | **Alle Schalter der Einstellungen** | Startverhalten, Los-Leiste, Preis inklusive Versand, Maßstab im Raster |
 | **Welcher Stream Ton hat** | wird wieder aufgenommen, sobald die Kachel da ist |

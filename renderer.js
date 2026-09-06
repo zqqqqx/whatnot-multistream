@@ -2661,6 +2661,10 @@ function applyAccount(state) {
 
   renderAccount();
   if (account.banned) lockDown();
+  // Wieder freigegeben, waehrend die App laeuft: Der Deckel liegt bereits ueber
+  // allem und die Kacheln sind abgeraeumt - das laesst sich nur durch einen
+  // Neuaufbau des Fensters sauber zuruecknehmen.
+  else if (locked) { location.reload(); return; }
   if (!els.setup.hidden) renderSetup();
 }
 

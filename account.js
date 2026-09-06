@@ -127,15 +127,43 @@ async function observe(rawName) {
   acc.username = name;
   acc.at = Date.now();
 
-  let banned = false;
-  try { banned = await bans.isBanned(name); } catch (err) { banned = false; }
-  // Eine bestehende Sperre wird nur durch ein *anderes*, freies Konto geloest -
-  // sonst waere sie durch simples Abmelden erledigt.
-  acc.banned = banned || (acc.banned && !changed);
+  let info = { known: false, banned: false };
+  try { info = await bans.status(name); } catch (err) { info = { known: false, banned: false }; }
+
+  if (info.known) {
+    // Es gibt eine brauchbare Liste - die entscheidet. Wird jemand darin
+    // gestrichen, ist er beim naechsten Abgleich wieder frei.
+    acc.banned = info.banned;
+  } else {
+    // Ohne Liste (kein Netz, noch nie geholt) bleibt der bisherige Stand fuer
+    // dasselbe Konto stehen. Sonst waere eine Sperre durch Netzstecker erledigt.
+    acc.banned = acc.banned && !changed;
+  }
 
   save();
   emit();
   return { changed, banned: acc.banned, username: acc.username };
+}
+
+/* Der halbstuendliche Abgleich: Liste neu holen und das gemerkte Konto erneut
+ * dagegen halten. Damit greift eine neu eingetragene Sperre im laufenden
+ * Betrieb - und ein Streichen aus der Liste hebt sie wieder auf, ohne dass
+ * jemand etwas installieren muesste. */
+async function recheck() {
+  const acc = load();
+  if (!acc.username) return state();
+
+  await bans.refresh(true);
+  let info = { known: false, banned: acc.banned };
+  try { info = await bans.status(acc.username); } catch (err) { return state(); }
+
+  if (!info.known) return state();          // ohne Liste bleibt alles, wie es war
+  if (acc.banned === info.banned) return state();
+
+  acc.banned = info.banned;
+  save();
+  emit();
+  return state();
 }
 
 // Konto wechseln: den gemerkten Namen vergessen. Eine Sperre bleibt bestehen,
@@ -239,4 +267,4 @@ function openLogin(parent, partition) {
   });
 }
 
-module.exports = { state, observe, forget, onChange, openLogin, locked, DETECT_JS, ACCOUNT_KEY };
+module.exports = { state, observe, recheck, forget, onChange, openLogin, locked, DETECT_JS, ACCOUNT_KEY };

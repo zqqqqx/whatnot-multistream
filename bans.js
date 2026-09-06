@@ -10,20 +10,27 @@
  * Rundherum Leerraum weg, ein fuehrendes @ weg, alles klein. "  @Foo " und
  * "foo" ergeben so denselben Abdruck.
  *
- * Die Herkunft der Liste steckt allein in readSources(). Heute ist das die
- * mitgelieferte Datei; soll die Liste spaeter aus dem Netz kommen, wird dort
- * eine weitere Quelle eingehaengt - der Rest der App merkt davon nichts, weil
- * er nur isBanned() kennt.
+ * Die Liste liegt im Netz, nicht in der App: Sonst wuerde eine Sperre erst
+ * greifen, wenn der Betroffene freiwillig ein Update einspielt - was er nicht
+ * tun wird. Der Client holt sie stattdessen alle dreissig Minuten frisch von
+ * GitHub. Eintragen und Streichen wirkt damit ohne neue Fassung.
+ *
+ * Was zuletzt geholt wurde, bleibt im Datenordner liegen. Das ist kein
+ * Zwischenspeicher aus Bequemlichkeit, sondern der Grund, warum sich eine
+ * Sperre nicht durch Netzstecker ziehen aushebeln laesst: Ist die Liste
+ * gerade nicht erreichbar, gilt die zuletzt bekannte.
  */
 const crypto = require('crypto');
-const path = require('path');
-const fs = require('fs');
+const store = require('./store.js');
 
-const LIST_FILE = path.join(__dirname, 'banned-users.json');
-const CACHE_MS = 5 * 60 * 1000; // Liste hoechstens alle fuenf Minuten neu lesen
+const REMOTE_URL = 'https://raw.githubusercontent.com/zqqqqx/whatnot-multistream/main/banned-users.json';
+const REFRESH_MS = 30 * 60 * 1000;  // halbstuendlich nachsehen
+const FETCH_TIMEOUT_MS = 15000;
+const MAX_BYTES = 512 * 1024;
+const CACHE_KEY = 'wnms.bans.v1';
 
-let cache = null;
-let cacheAt = 0;
+let cached = null;      // { hashes: [], at, from } - Stand dieser Sitzung
+let inFlight = null;    // laeuft gerade eine Abfrage?
 
 function normalize(username) {
   return String(username == null ? '' : username)
@@ -39,46 +46,94 @@ function hash(username) {
   return crypto.createHash('sha256').update(name, 'utf8').digest('hex');
 }
 
-// Eine Quelle liefert ein Feld mit Abdruecken (Kleinschreibung, hex).
-function readLocalFile() {
-  try {
-    let raw = fs.readFileSync(LIST_FILE, 'utf8');
-    if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
-    const data = JSON.parse(raw);
-    const list = Array.isArray(data) ? data : (data && data.hashes);
-    if (!Array.isArray(list)) return [];
-    return list
-      .map((entry) => String(entry || '').trim().toLowerCase())
-      .filter((entry) => /^[0-9a-f]{64}$/.test(entry));
-  } catch (err) {
-    return []; // keine Datei, kaputte Datei: dann sperrt eben nichts
+// Aus dem Dateiinhalt die brauchbaren Abdruecke ziehen. Akzeptiert sowohl ein
+// blankes Feld als auch das Objekt mit "hashes" - beides kommt vor, wenn die
+// Datei von Hand bearbeitet wird.
+function parseList(text) {
+  let raw = String(text || '');
+  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+  const data = JSON.parse(raw);
+  const list = Array.isArray(data) ? data : (data && data.hashes);
+  if (!Array.isArray(list)) throw new Error('kein hashes-Feld');
+  return list
+    .map((entry) => String(entry || '').trim().toLowerCase())
+    .filter((entry) => /^[0-9a-f]{64}$/.test(entry));
+}
+
+async function fetchRemote() {
+  // Erst hier laden: Zum Zeitpunkt des require() ist Electron noch nicht bereit.
+  const { net } = require('electron');
+  const res = await net.fetch(REMOTE_URL, {
+    cache: 'no-cache',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const text = await res.text();
+  if (text.length > MAX_BYTES) throw new Error('Liste unerwartet gross');
+  return parseList(text);
+}
+
+function readCache() {
+  const saved = store.get(CACHE_KEY, null);
+  if (!saved || typeof saved !== 'object' || !Array.isArray(saved.hashes)) return null;
+  return { hashes: saved.hashes, at: Number(saved.at) || 0, from: 'cache' };
+}
+
+function writeCache(hashes) {
+  try { store.set(CACHE_KEY, { hashes: hashes, at: Date.now() }); } catch (err) { /* dann nur diese Sitzung */ }
+}
+
+/* Holt die Liste. Klappt das nicht, wird der letzte bekannte Stand benutzt -
+ * eine gesetzte Sperre bleibt also bestehen, auch wenn GitHub gerade nicht
+ * erreichbar ist. Rueckgabe sagt, woher die Liste stammt. */
+async function refresh(force) {
+  if (inFlight) return inFlight;
+  if (!force && cached && cached.from === 'remote' && Date.now() - cached.at < REFRESH_MS) {
+    return cached;
   }
+
+  inFlight = (async () => {
+    try {
+      const hashes = await fetchRemote();
+      cached = { hashes: hashes, at: Date.now(), from: 'remote' };
+      writeCache(hashes);
+    } catch (err) {
+      // Nicht erreichbar: der zuletzt bekannte Stand gilt weiter
+      if (!cached || cached.from !== 'remote') cached = readCache() || cached;
+    }
+    return cached;
+  })();
+
+  try { return await inFlight; } finally { inFlight = null; }
 }
 
-// Hier haengen kuenftige Quellen ein (z. B. eine geladene Liste aus dem Netz).
-// Jede liefert ein Array von Abdruecken; alle werden zusammengeworfen.
-async function readSources() {
-  const parts = await Promise.all([
-    Promise.resolve(readLocalFile())
-  ]);
-  const all = new Set();
-  for (const part of parts) for (const entry of part) all.add(entry);
-  return all;
+// Der Stand, ohne selbst ins Netz zu gehen - fuer alles, was sofort antworten muss
+function current() {
+  if (!cached) cached = readCache();
+  return cached;
 }
 
-async function list(force) {
-  const now = Date.now();
-  if (!force && cache && now - cacheAt < CACHE_MS) return cache;
-  cache = await readSources();
-  cacheAt = now;
-  return cache;
+/* Was ist ueber dieses Konto bekannt?
+ *
+ *   known  - es gibt ueberhaupt eine brauchbare Liste
+ *   banned - dieses Konto steht darin
+ *
+ * Die Unterscheidung ist wichtig: Ohne Liste darf eine bestehende Sperre nicht
+ * stillschweigend verfallen, aber auch keine neue entstehen.
+ */
+async function status(username) {
+  let list = current();
+  // Beim ersten Mal und wenn der Stand alt ist: nachsehen
+  if (!list || list.from !== 'remote' || Date.now() - list.at >= REFRESH_MS) {
+    list = await refresh();
+  }
+  const digest = hash(username);
+  if (!list || !digest) return { known: Boolean(list), banned: false, from: list ? list.from : 'none' };
+  return { known: true, banned: list.hashes.indexOf(digest) >= 0, from: list.from };
 }
 
 async function isBanned(username) {
-  const digest = hash(username);
-  if (!digest) return false;
-  const set = await list();
-  return set.has(digest);
+  return (await status(username)).banned;
 }
 
-module.exports = { normalize, hash, isBanned, list, LIST_FILE };
+module.exports = { normalize, hash, status, isBanned, refresh, current, REFRESH_MS, REMOTE_URL, CACHE_KEY };
