@@ -2,6 +2,6 @@
   "_hinweis": "SHA-256 der normalisierten Whatnot-Usernamen (getrimmt, ohne fuehrendes @, klein). Keine Klartextnamen. Abdruck bilden: node tools/ban-hash.js <name>",
   "version": 1,
   "algorithm": "sha256",
-  "hashes": [
+  "hashes": ["07354338c56957c9ec45b218b4940c401846e6464cd7c0e7a3e83b65c9f0e6ad"
   ]
 }
