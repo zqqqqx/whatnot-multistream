@@ -230,6 +230,26 @@ Unter *Einstellungen → Bieten*:
 | **Max-Gebot je Auktion** | Schaltet den Knopf ab; ein ausgeblendeter Gebots-Knopf kommt sofort zurück. |
 | **Spielraum über der Grenze** | So weit darf über die eingetragene Grenze hinaus geboten werden. Bei 5 € Spielraum und einer Grenze von 40 € bleibt der Knopf bis einschließlich 45 € stehen und verschwindet ab 46 €. |
 
+## Die Beitritts-Meldung
+
+Beim Betreten einer Show wirft Whatnot „Herzlich Willkommen! Du nimmst an einer
+Show von … teil" hoch. Bei einer Wand aus Kacheln erscheint die reihum in jeder
+einzelnen, deshalb wird sie unterdrückt – aber **nur diese eine**, erkannt am
+Wortlaut. Fehlermeldungen und Gebotshinweise bleiben stehen.
+
+Wichtig dabei: Whatnot zeigt sie teils nicht als Einblendung, sondern als
+`<dialog>`, geöffnet mit `showModal()`. So einer ist etwas völlig anderes –
+solange er offen ist, erklärt der Browser den **ganzen Rest der Seite** für
+unbedienbar. Ihn zu verstecken nimmt ihm das nicht: Er wäre dann unsichtbar
+*und* nicht mehr wegzuklicken, und in der Kachel ließe sich nirgends mehr etwas
+anklicken – auch nicht in der Großansicht, denn es ist der Zustand der Seite und
+nicht der der Kachel. Ein solcher Dialog wird deshalb **geschlossen**.
+
+Als Notbremse gegen dieselbe Falle, egal wer sie aufstellt: Ein offener modaler
+Dialog, der nichts zeichnet, wird nach zwei Proben ohne Rücksicht auf den
+Wortlaut geschlossen. Ein Dialog, der unsichtbar ist und zugleich jede Eingabe
+sperrt, hat keinen sinnvollen Zweck.
+
 ## Whatnots eigene Kopfzeile
 
 Über dem Videobild liegt bei Whatnot eine Kopfzeile mit Profilbild, Name des

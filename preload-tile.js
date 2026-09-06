@@ -395,13 +395,72 @@ function joinBox(el) {
   return node;
 }
 
+/* Whatnot zeigt diese Meldung teils nicht als Einblendung, sondern als <dialog>,
+ * geoeffnet mit showModal(). So einer ist etwas voellig anderes: Solange er offen
+ * ist, erklaert der Browser den *ganzen* Rest der Seite fuer unbedienbar (inert)
+ * - dann laesst sich in der Kachel nirgends mehr klicken, auch nicht in der
+ * Grossansicht, denn es ist der Zustand der Seite und nicht der der Kachel.
+ *
+ * Ihn zu verstecken nimmt ihm das nicht: display:none macht ihn unsichtbar, aber
+ * er bleibt offen und die Sperre bleibt bestehen - unsichtbar und deshalb auch
+ * nicht mehr wegzuklicken. Geschlossen werden muss er.
+ */
+function closeDialog(node) {
+  const dialog = node && node.closest ? node.closest('dialog') : null;
+  if (!dialog || !dialog.open) return false;
+  try {
+    dialog.close();
+  } catch (err) {
+    try { dialog.removeAttribute('open'); } catch (e) { return false; }
+  }
+  return true;
+}
+
 function hideJoin(el) {
   try {
+    // Schliessen ist besser als verstecken - und beim Dialog das einzig Richtige
+    if (closeDialog(el)) return;
     const box = joinBox(el);
     if (box.dataset && box.dataset.wnmsJoinHidden) return;
     if (box.dataset) box.dataset.wnmsJoinHidden = '1';
     box.style.setProperty('display', 'none', 'important');
   } catch (err) { /* Knoten schon wieder weg */ }
+}
+
+/* Notbremse gegen dieselbe Falle, egal wer sie aufgestellt hat.
+ *
+ * Ein offener modaler Dialog, der nichts zeichnet, ist immer eine Sackgasse: Er
+ * sperrt jede Eingabe auf der Seite und ist zugleich nicht zu sehen, also auch
+ * nicht wegzuklicken. Ein solcher Zustand hat keinen sinnvollen Zweck - deshalb
+ * wird er aufgeloest, ohne auf den Wortlaut zu schauen.
+ *
+ * Zwei Proben Abstand, damit ein Dialog, der gerade erst eingeblendet wird,
+ * nicht mitten in seiner Bewegung zugemacht wird. Auf opacity wird bewusst nicht
+ * geachtet: Einblendungen beginnen regelmaessig bei null.
+ */
+const TRAP_TICKS = 2;
+const trapCount = new WeakMap();
+
+function freeTrappedDialogs() {
+  for (const dialog of document.querySelectorAll('dialog[open]')) {
+    let modal = false;
+    try { modal = dialog.matches(':modal'); } catch (err) { modal = false; }
+    if (!modal) { trapCount.delete(dialog); continue; }
+
+    const style = getComputedStyle(dialog);
+    const rect = dialog.getBoundingClientRect();
+    const unsichtbar = style.display === 'none' || style.visibility === 'hidden'
+      || rect.width < 1 || rect.height < 1;
+    if (!unsichtbar) { trapCount.delete(dialog); continue; }
+
+    const gesehen = (trapCount.get(dialog) || 0) + 1;
+    trapCount.set(dialog, gesehen);
+    if (gesehen < TRAP_TICKS) continue;
+
+    try { dialog.close(); } catch (err) {
+      try { dialog.removeAttribute('open'); } catch (e) { /* dann bleibt er */ }
+    }
+  }
 }
 
 function scanJoin(root) {
@@ -432,7 +491,7 @@ function watchJoin() {
 // Nachzuegler: Einblendungen mit eigener Rolle werden ohnehin gemeldet, aber
 // eine, die schon vor dem Beobachter dastand, faende er nie.
 function sweepJoin() {
-  for (const el of document.querySelectorAll('[role="status"], [role="alert"], [aria-live]')) {
+  for (const el of document.querySelectorAll('dialog[open], [role="status"], [role="alert"], [aria-live]')) {
     if (looksLikeJoin((el.textContent || '').trim())) hideJoin(el);
   }
 }
@@ -549,7 +608,22 @@ function removeById(id) {
   if (el && el.parentElement) el.parentElement.removeChild(el);
 }
 
+/* Der Kasten schliesst sich auch, wenn daneben geklickt wird oder sich die
+ * Kachelgroesse aendert. Ohne das bliebe er stehen - und stuende dann als
+ * fester Block ueber der Seite, der Klicks abfaengt, sogar nachdem die Kachel
+ * gross gezogen wurde (er sitzt in der Seite, nicht in der Kachel). */
+function maxPopAussen(event) {
+  const box = document.getElementById(MAX_POP_ID);
+  if (!box) { closeMaxPop(); return; }
+  if (box.contains(event.target)) return;
+  const knopf = document.getElementById(MAX_BTN_ID);
+  if (knopf && knopf.contains(event.target)) return;  // der schaltet selbst um
+  closeMaxPop();
+}
+
 function closeMaxPop() {
+  window.removeEventListener('mousedown', maxPopAussen, true);
+  window.removeEventListener('resize', closeMaxPop);
   removeById(MAX_POP_ID);
 }
 
@@ -637,6 +711,8 @@ function openMaxPop() {
   row.append(ok, off);
   box.append(head, field, hint, row);
   document.body.appendChild(box);
+  window.addEventListener('mousedown', maxPopAussen, true);
+  window.addEventListener('resize', closeMaxPop);
   field.focus();
   field.select();
 }
@@ -734,6 +810,7 @@ const pulse = setInterval(() => {
   try { applyMax(); } catch (err) { /* Seite baut gerade um */ }
   pollLot();
   sweepJoin();
+  freeTrappedDialogs();        // niemand soll vor einer unsichtbaren Sperre sitzen
   trimUi();                    // nach einer Navigation ist der Stil weg
   if (chatHidden) applyChat(); // Whatnot baut die Oberflaeche neu auf - nachziehen
 }, LOT_POLL_MS);

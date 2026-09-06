@@ -1764,6 +1764,20 @@ function moveRightPress(point) {
   if (rightPress.moved) reorderTo(rightPress.id, point);
 }
 
+/* Abbrechen ohne Wirkung: Wird die Taste ausserhalb des Fensters losgelassen,
+ * kommt bei uns nie ein mouseup an - die Auffangflaeche bliebe liegen und legte
+ * das ganze Raster still, denn sie deckt die Buehne ab. Deshalb wird sie auch
+ * beim Verlassen des Fensters wieder eingerollt. */
+function cancelRightPress() {
+  if (!rightPress) return;
+  const tile = tiles.get(rightPress.id);
+  if (tile) tile.el.classList.remove('dragging');
+  const bewegt = rightPress.moved;
+  rightPress = null;
+  els.dragOverlay.hidden = true;
+  if (bewegt) { store(USERS_KEY, users); renderUserList(); }
+}
+
 function endRightPress(point) {
   if (!rightPress) return;
   const { id, moved } = rightPress;
@@ -2760,7 +2774,18 @@ document.addEventListener('mousemove', (e) => {
   if (rightPress) moveRightPress({ x: e.clientX, y: e.clientY });
 });
 document.addEventListener('mouseup', (e) => {
-  if (e.button === 2 && rightPress) endRightPress({ x: e.clientX, y: e.clientY });
+  if (!rightPress) return;
+  if (e.button === 2) endRightPress({ x: e.clientX, y: e.clientY });
+  // Kam der Druck von woanders zurueck (Taste ausserhalb losgelassen und
+  // wieder hereingefahren), ist gar keine Taste mehr unten - dann nur aufraeumen
+  else if (e.buttons === 0) cancelRightPress();
+});
+
+// Fenster verlassen oder Fokus verloren: den Griff loesen, sonst bliebe die
+// Auffangflaeche ueber der Buehne liegen und nichts waere mehr anklickbar.
+window.addEventListener('blur', cancelRightPress);
+document.addEventListener('mouseleave', (e) => {
+  if (rightPress && !e.relatedTarget) cancelRightPress();
 });
 
 document.addEventListener('keydown', (e) => {
