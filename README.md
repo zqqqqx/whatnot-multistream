@@ -197,12 +197,24 @@ schließt sich von selbst, und **alle offenen Streams werden neu geladen**, dami
 sie sofort mit dem neuen Konto laufen. Brichst du ab oder schließt das Fenster,
 passiert nichts davon – dann wird auch nichts neu geladen.
 
-Erkannt wird der Name an der Stelle, an der Whatnot ihn selbst in jede Seite legt
-(`window.__whatnot__.loggerContext.usr.name`), ersatzweise an den
-Analyse-Merkmalen im `localStorage`. Das kostet keine eigene Abfrage: Auch bei der
-regulären Live-Prüfung fällt der Name nebenbei ab, sodass ein Kontowechsel im
-Hintergrund von allein nachgezogen wird. Der Stand steht unter
-*Einstellungen → Konto*.
+### Wie der Name erkannt wird
+
+Whatnot legt den angemeldeten Nutzer in jede Seite
+(`window.__whatnot__.loggerContext.usr.name`) – aber **nur beim echten
+Seitenaufruf**. Ein `fetch` derselben Adresse bekommt die Nutzerdaten nicht mit,
+auch mit Anmeldung nicht. Genau daran ging die Erkennung eine Zeit lang vorbei,
+weshalb die App sich für abgemeldet hielt, obwohl die Sitzung stand.
+
+Gelesen wird deshalb an einer dritten Stelle: Whatnot legt dieselben Angaben in
+den `localStorage` der Herkunft, und der ist auch auf der `robots.txt` lesbar,
+auf der der Prüfhelfer ohnehin parkt. Das kostet keine Anfrage und ist in
+Millisekunden da – auch gleich nach einer Aktualisierung, denn die Anmeldung
+überlebt sie.
+
+Steht dort nichts, gibt es einen zweiten Weg: eine echte Navigation, die ein paar
+Sekunden dauert. Sie wird nur beschritten, wenn die Sitzungs-Cookies überhaupt
+eine Anmeldung nahelegen – ohne die ist niemand angemeldet und es gibt nichts
+nachzusehen. Der Stand steht unter *Einstellungen → Konto*.
 
 ## Ausgeschlossene Konten
 
@@ -233,15 +245,24 @@ nach; eintragen und streichen wirkt damit im laufenden Betrieb, ohne Release.
 3. Fertig. Innerhalb einer halben Stunde greift es überall; wer die App neu
    startet, ist sofort dran.
 
+Die Liste wird mit wechselnder Adresse geholt: GitHubs Ausliefernetz hält die
+Datei sonst einige Minuten fest und beachtet dabei kein `no-cache` – eine frische
+Sperre griffe dann Minuten später als nötig.
+
 Streichen hebt die Sperre auf demselben Weg wieder auf.
 
 ### Was passiert
 
-Geprüft wird nach jeder erkannten Anmeldung, bei jeder Live-Prüfung und bei
-jedem halbstündlichen Abgleich. Ein Treffer legt die App still: keine Kacheln,
-keine Prüfung, ein Hinweis, dass dieses Konto nicht zur Nutzung berechtigt ist.
-Wird jemand wieder gestrichen, baut sich das Fenster beim nächsten Abgleich von
-selbst neu auf.
+Geprüft wird **beim Start, bevor die erste Show geöffnet wird** – zuerst gegen
+den gemerkten Stand, dann gegen die frisch geholte Liste. Ein gesperrtes Konto
+bekommt so keine Sekunde lang Streams zu sehen; die Suche nach laufenden Shows
+beginnt erst, wenn feststeht, wer da ist. Wer nicht gesperrt ist, merkt davon
+nichts: Das Ganze ist in gut einer halben Sekunde erledigt.
+
+Danach wird bei jeder erkannten Anmeldung und bei jedem halbstündlichen Abgleich
+erneut geprüft. Ein Treffer legt die App still: keine Kacheln, keine Prüfung, ein
+Hinweis, dass dieses Konto nicht zur Nutzung berechtigt ist. Wird jemand wieder
+gestrichen, baut sich das Fenster beim nächsten Abgleich von selbst neu auf.
 
 Der zuletzt geholte Stand bleibt im Datenordner liegen. Das ist kein
 Zwischenspeicher aus Bequemlichkeit, sondern der Grund, warum sich eine Sperre

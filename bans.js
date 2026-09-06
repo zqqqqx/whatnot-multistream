@@ -63,7 +63,11 @@ function parseList(text) {
 async function fetchRemote() {
   // Erst hier laden: Zum Zeitpunkt des require() ist Electron noch nicht bereit.
   const { net } = require('electron');
-  const res = await net.fetch(REMOTE_URL, {
+  // Der Anhang haengt nicht am Inhalt, sondern am Zwischenspeicher davor:
+  // GitHubs Ausliefernetz haelt die Datei einige Minuten fest und beachtet
+  // dabei kein "no-cache". Mit wechselnder Adresse wird jedes Mal wirklich neu
+  // geholt - sonst griffe eine frische Sperre erst Minuten spaeter.
+  const res = await net.fetch(REMOTE_URL + '?t=' + Date.now(), {
     cache: 'no-cache',
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });

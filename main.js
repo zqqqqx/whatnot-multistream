@@ -262,6 +262,23 @@ ipcMain.handle('wnms-account-observe', async (_event, username) => {
 
 ipcMain.handle('wnms-account-forget', () => { account.forget(); return account.state(); });
 
+// Dasselbe Stueck Code, mit dem das Anmeldefenster den Namen liest - damit es
+// nicht zwei Fassungen davon gibt, die auseinanderlaufen.
+ipcMain.handle('wnms-account-script', () => account.DETECT_JS);
+
+/* Liegt ueberhaupt eine Anmeldung vor? Die Frage ist billig zu beantworten -
+ * Whatnots Sitzungsmerkmale stehen als Cookies in der Ablage-Partition. Das
+ * ersetzt keine Namenserkennung, erspart aber den teuren Weg dorthin: Ohne
+ * diese Cookies ist niemand angemeldet, und es gibt nichts nachzusehen. */
+ipcMain.handle('wnms-account-session', async () => {
+  try {
+    const kekse = await session.fromPartition(PARTITION).cookies.get({ domain: '.whatnot.com' });
+    return kekse.some((k) => /^__Secure-(access|refresh)-token/i.test(k.name));
+  } catch (err) {
+    return true; // im Zweifel nachsehen, nicht durchwinken
+  }
+});
+
 ipcMain.handle('wnms-account-login', async () => {
   if (account.locked()) return { result: 'locked' };
   return account.openLogin(win, PARTITION);

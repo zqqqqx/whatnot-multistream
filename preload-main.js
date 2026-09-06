@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('wnms', {
     state: () => ipcRenderer.invoke('wnms-account-state'),
     login: () => ipcRenderer.invoke('wnms-account-login'),
     observe: (username) => ipcRenderer.invoke('wnms-account-observe', String(username || '')),
+    script: () => ipcRenderer.invoke('wnms-account-script'),
+    hasSession: () => ipcRenderer.invoke('wnms-account-session'),
     forget: () => ipcRenderer.invoke('wnms-account-forget'),
     onChange: (fn) => ipcRenderer.on('wnms-account', (_event, state) => fn(state))
   },

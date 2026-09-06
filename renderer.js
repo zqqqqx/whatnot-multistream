@@ -822,6 +822,7 @@ function checkUser(user) {
 
 function checkAll() {
   if (locked) return false;
+  if (!gateDone) return false;   // erst steht fest, wer da ist - dann Streams
   if (checking > 0) return false;
   if (!users.length) return false;
   for (const user of users.slice()) checkUser(user);
@@ -887,6 +888,10 @@ function updateEmptyState() {
   els.idleInfo.textContent = 'Keiner der ' + users.length + ' beobachteten Streamer sendet'
     + (time ? ' (zuletzt geprüft ' + time + ').' : '.');
 }
+
+// Erst wenn feststeht, wer angemeldet ist und ob er darf, wird nach Shows
+// gesucht (siehe startUp weiter unten).
+let gateDone = false;
 
 let checkTimer = setInterval(checkAll, CHECK_INTERVAL);
 
@@ -2756,6 +2761,68 @@ function refreshAccount() {
   return accountApi.state().then(applyAccount).catch(() => {});
 }
 
+/* ---- Wer ist gerade angemeldet? ----
+ *
+ * Zwei Wege, absichtlich in dieser Reihenfolge:
+ *
+ * 1. Der Pruefhelfer liegt ohnehin auf whatnot.com. Whatnot legt den
+ *    angemeldeten Nutzer dort in den localStorage der Herkunft - der ist auch
+ *    auf der robots.txt lesbar, auf der der Helfer parkt. Das kostet keine
+ *    Anfrage und ist in Millisekunden da.
+ *
+ * 2. Steht dort nichts, hilft nur eine *echte* Navigation: Ein fetch der
+ *    Startseite bekommt die Nutzerdaten nicht mehr mit - Whatnot liefert sie
+ *    nur beim Seitenaufruf selbst. (Genau daran ging die Erkennung zuletzt
+ *    vorbei, weshalb die App sich fuer abgemeldet hielt.) Das dauert ein paar
+ *    Sekunden und passiert deshalb nur, wenn der erste Weg nichts hergibt.
+ */
+let detectScript = null;
+
+async function accountScript() {
+  if (detectScript) return detectScript;
+  try { detectScript = await accountApi.script(); } catch (err) { detectScript = ''; }
+  return detectScript;
+}
+
+async function detectLogin() {
+  if (!accountApi) return '';
+  const code = await accountScript();
+  if (!code) return '';
+
+  try {
+    const schnell = await queued(() => els.checker.executeJavaScript(code, true));
+    if (schnell) return schnell;
+  } catch (err) { /* zweiter Weg */ }
+
+  // Der zweite Weg kostet einen ganzen Seitenaufbau. Den lohnt es nur, wenn
+  // ueberhaupt eine Anmeldung vorliegt - das verraten die Sitzungs-Cookies,
+  // ohne dass etwas geladen werden muss.
+  try {
+    if (!(await accountApi.hasSession())) return '';
+  } catch (err) { /* dann eben nachsehen */ }
+
+  return queued(async () => {
+    try { els.checker.loadURL('https://www.whatnot.com/de-DE'); } catch (err) { return ''; }
+
+    let fertigSeit = 0;
+    for (let i = 0; i < 60; i++) {
+      await sleep(200);
+      let name = '';
+      try { name = await els.checker.executeJavaScript(code, true); } catch (err) { name = ''; }
+      if (name) { backToHome(); return name; }
+
+      // Steht die Seite und ist trotzdem niemand zu sehen, ist auch keiner da -
+      // dann nicht die vollen zwoelf Sekunden abwarten.
+      let laedt = true;
+      try { laedt = els.checker.isLoading(); } catch (err) { laedt = false; }
+      if (!laedt && !fertigSeit) fertigSeit = Date.now();
+      if (fertigSeit && Date.now() - fertigSeit > 2000) break;
+    }
+    backToHome();
+    return '';
+  });
+}
+
 function reloadEverything(message) {
   if (message) toast(message);
   for (const tile of tiles.values()) {
@@ -3150,11 +3217,34 @@ syncTiles();
 renderUserList();
 updateCheckInfo();
 
-// Erste Runde, sobald der Helfer steht
-whenCheckerReady().then(() => {
-  if (locked) return;
+/* ---- Der Start ----
+ *
+ * Bevor auch nur eine Show geoeffnet wird, steht fest, wer angemeldet ist und
+ * ob dieses Konto ueberhaupt darf. Ein gesperrtes Konto bekommt so keine
+ * Sekunde lang Streams zu sehen. Wer nicht gesperrt ist, merkt davon nichts:
+ * Der Name kommt aus dem localStorage des Pruefhelfers (Millisekunden), die
+ * Sperrliste ist ein kleiner Abruf.
+ */
+async function startUp() {
+  // Der gemerkte Stand zuerst: Ein bereits gesperrtes Konto ist damit sofort
+  // draussen, ohne dass ueberhaupt etwas ins Netz muss.
+  await refreshAccount();
+  if (locked) { gateDone = true; return; }
+  if (!(await whenCheckerReady())) { gateDone = true; return; }
+  if (locked) { gateDone = true; return; }
+
+  const name = await detectLogin();
+  if (name) {
+    lastReported = name.toLowerCase();
+    try { applyAccount(await accountApi.observe(name)); } catch (err) { /* dann der alte Stand */ }
+  }
+
+  gateDone = true;
+  if (locked) return;                       // gesperrt: hier ist Schluss
   if (settings.startCheck !== false) checkAll();
-});
+}
+
+startUp();
 
 // Beim allerersten Start fuehrt der Assistent durch alles Noetige. Wer ihn
 // abgebrochen hat, landet wieder an der Stelle, an der er aufgehoert hat.
