@@ -1,556 +1,314 @@
+<div align="center">
+
+<img src="docs/bilder/logo.png" width="88" alt="">
+
 # Whatnot Multistream
 
-Du trägst **Streamer** ein, nicht Streams. Die App prüft im Hintergrund alle zwei
-Minuten, wer davon gerade live ist, und öffnet die laufende Show automatisch als
-Kachel – im Smartphone-Format mit Bild **und** Chat, so wie die Streams gesendet
-werden (hochkant, 720×1280). Endet die Show, verschwindet die Kachel wieder.
-Ein Klick auf das Vergrößern-Symbol zeigt einen Stream groß in der Desktop-Ansicht – mit Shop,
-Produktliste und Gebots-Schaltflächen zum Mitbieten.
+**Bis zu 20 Whatnot-Shows gleichzeitig in einem Fenster.**
 
-Beim ersten Start führt ein kurzer Assistent durch Anmeldung und Streamerliste;
-danach läuft alles von allein.
+Du trägst *Streamer* ein, keine Streams. Die App schaut nach, wer davon gerade live ist, und holt die laufende Show von selbst ins Raster. Ist die Show vorbei, ist die Kachel weg.
+
+[![Version](https://img.shields.io/github/v/release/zqqqqx/whatnot-multistream?style=flat-square&color=ffd400&labelColor=0d1117&label=Version)](https://github.com/zqqqqx/whatnot-multistream/releases/latest) [![Downloads](https://img.shields.io/github/downloads/zqqqqx/whatnot-multistream/total?style=flat-square&color=ffd400&labelColor=0d1117&label=Downloads)](https://github.com/zqqqqx/whatnot-multistream/releases) ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-ffd400?style=flat-square&labelColor=0d1117) [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-ffd400?style=flat-square&labelColor=0d1117)](LICENSE)
+
+<img src="docs/bilder/raster.jpg" alt="Zehn laufende Whatnot-Shows nebeneinander im Raster">
+
+</div>
+
+---
+
+## Was du davon hast
+
+- **Alles auf einen Blick.** Zehn Schnäppchenjäger gleichzeitig, statt zwischen Tabs zu springen.
+- **Kein Verpassen.** Geht jemand live, erscheint die Kachel von selbst.
+- **Der echte Preis.** Unter jedem Gebot steht, was es **mit Versand** kostet.
+- **Eine Bremse beim Bieten.** Setz dir pro Auktion eine Grenze – darüber verschwindet der Gebots-Knopf.
+- **Ton nur einmal.** Immer genau ein Stream ist hörbar, ein Klick schaltet um.
 
 ## Installieren
 
-Im Ordner `dist` liegt **`Whatnot-Multistream-Setup-<version>.exe`**. Doppelklick,
-Zielordner wählen, fertig – die Installation läuft ohne Administratorrechte
-(nur für den angemeldeten Benutzer) und legt Verknüpfungen auf dem Desktop und
-im Startmenü an. Deinstalliert wird über *Apps & Features*.
+1. Unter [**Releases**](https://github.com/zqqqqx/whatnot-multistream/releases/latest) die Datei `Whatnot-Multistream-Setup-x.y.z.exe` laden.
+2. Doppelklick. Es braucht **keine Administratorrechte**.
+3. Windows warnt beim ersten Start (die Datei ist nicht signiert): *Weitere Informationen* → *Trotzdem ausführen*.
 
-Da die Datei nicht signiert ist, meldet sich beim ersten Start der
-SmartScreen-Filter von Windows: *Weitere Informationen* → *Trotzdem ausführen*.
+Updates meldet die App selbst – oben erscheint ein gelber Knopf. Geladen wird erst auf Klick.
 
-## Aktualisierungen
+## Die ersten Minuten
 
-Die App sieht bei GitHub nach, ob eine neuere Fassung vorliegt – acht Sekunden
-nach dem Start und danach alle drei Stunden. Geladen wird **nichts von allein**:
-Gibt es etwas Neues, erscheint oben in der Kopfleiste ein gelber Knopf
-*„Version x.y.z laden"*. Ein Klick lädt herunter (der Knopf füllt sich als
-Fortschrittsbalken), ein zweiter startet die App neu und spielt die Fassung ein.
-Wer stattdessen einfach schließt, bekommt sie beim nächsten Beenden eingespielt.
+Beim ersten Start führt dich ein kurzer Assistent durch genau diese vier Schritte:
 
-Steht nichts an, ist von alldem nichts zu sehen.
-
-Bezugsquelle sind die [Releases](https://github.com/zqqqqx/whatnot-multistream/releases)
-dieses Projekts. Dort liegen je Fassung drei Dateien: der Installer, eine
-`latest.yml` mit Version und Prüfsumme und eine `.blockmap`, dank der nur die
-geänderten Teile geladen werden statt jedes Mal 112 MB. Weil der Installer nicht
-signiert ist, meldet sich beim Einspielen wieder SmartScreen.
-
-## Aus dem Quelltext starten
-
-Doppelklick auf **`Whatnot Multistream starten.bat`** – oder im Ordner:
-
-```bash
-npm start
-```
-
-Die installierte Fassung und `npm start` teilen sich denselben Datenordner, die
-Streamerliste ist also in beiden dieselbe.
-
-## Installer neu bauen
-
-```bash
-npm run dist
-```
-
-Das erzeugt zuerst aus `build/icon.svg` die Symbole (`npm run icon`) und packt
-dann mit electron-builder den NSIS-Installer nach `dist/` – zusammen mit
-`latest.yml` und `.blockmap`. Für eine neue Fassung: Version in der
-`package.json` erhöhen, bauen und **alle drei Dateien** an ein GitHub-Release
-mit dem Tag `v<version>` hängen. Genau danach sucht die Selbstaktualisierung. Das App-Symbol ist
-dasselbe gelbe Abzeichen mit dem **W**, das oben links in der App steht.
-
-## Warum eine Desktop-App und keine Webseite?
-
-Whatnot verbietet das Einbetten seiner Seiten per iFrame
-(`X-Frame-Options: SAMEORIGIN`). Im Browser lässt sich deshalb keine Seite bauen,
-die mehrere Streams gleichzeitig anzeigt. Diese App bettet die Streams nicht als
-iFrames ein, sondern als eigenständige Browser-Views (Electron `<webview>`) –
-dafür gilt die Sperre nicht. Ergebnis: alles läuft in einem Fenster.
-
-## Streamer verwalten
-
-Der Knopf **Shows** öffnet die Liste. Jede Zeile zeigt das Profilbild, den
-Namen, ein **LIVE**-Zeichen, wenn gerade gesendet wird, und darunter Zuschauer
-und Showtitel – sonst *Offline* mit dem Termin der nächsten geplanten Show.
-Rechts liegen drei Schalter: Profil im Browser öffnen, verstecken und entfernen.
-
-**Verstecken** heißt: Der Streamer wird weiter geprüft, bekommt aber nie eine
-Kachel. Geht er live, erscheint er oben hinter dem Augen-Symbol. Praktisch für
-Kanäle, die man beobachten, aber nicht dauernd sehen will.
-
-### Neue Streams entdecken
-
-Der zweite Reiter im Shows-Fenster zeigt, was gerade auf **deiner** Whatnot-
-Startseite läuft – mit Vorschaubild, Verkäufer, Titel und Zuschauerzahl, nach
-Zuschauern sortiert. Ein Klick auf eine Karte nimmt den Verkäufer in die Liste
-auf; die Kachel erscheint dann von selbst. Wer schon in der Liste steht, ist als
-*Schon dabei* gekennzeichnet und lässt sich nicht doppelt aufnehmen.
-
-Gelesen wird über denselben Helfer wie die Live-Erkennung – der liegt ohnehin
-angemeldet auf whatnot.com. Beide teilen sich ihn der Reihe nach: Läuft gerade
-eine Live-Prüfung, kommt die Startseite erst danach dran, und der Hinweis im
-Fenster sagt das auch. Eine einmal geholte Liste gilt anderthalb Minuten als
-frisch, *Neu laden* holt sie sofort wieder.
-
-### Ganze Listen einfügen und weitergeben
-
-Ins Eingabefeld darf auch eine **ganze Liste**:
-
-```
-voltico, emd_livedeals, soleva7
-```
-
-Getrennt wird an Komma, Semikolon, Leerzeichen und Zeilenumbruch; `@name` und
-ganze Profil-Links gehen ebenso. Namen, die schon in der Liste stehen, werden
-stillschweigend übersprungen – die Meldung sagt hinterher, was hinzugekommen ist
-und was schon dabei war.
-
-Umgekehrt gibt **Liste kopieren** unten alle Streamer im selben Format in die
-Zwischenablage. So lässt sich die eigene Auswahl an Freunde weitergeben, die sie
-in einem Zug einfügen können.
-
-Bis zu 40 Streamer lassen sich beobachten; gleichzeitig laufen höchstens
-20 Kacheln. Profilbilder holt die App bei der Live-Prüfung mit und merkt sie
-sich, damit sie beim nächsten Start sofort da sind.
-
-## Wie die Live-Erkennung funktioniert
-
-Eine Profilseite listet unter „Anstehende Shows" die laufende **und** die nur
-geplanten Shows nebeneinander auf – der Link allein sagt also nichts darüber aus,
-ob gerade gesendet wird. Die App holt deshalb die Profilseite und liest den
-Status der einzelnen Shows aus den mitgelieferten Seitendaten:
-
-- `PLAYING` → läuft gerade, diese Show wird geöffnet
-- `CREATED` → nur geplant, wird ignoriert
-
-Fällt dieser Weg aus (z. B. weil Whatnot den Seitenaufbau ändert), lädt die App
-das Profil sichtbar nach und erkennt die laufende Show am roten
-**„Live · *n*"**-Aufkleber der Show-Kachel.
-
-Geprüft wird alle zwei Minuten – für alle Streamer nacheinander, damit Whatnot
-nicht mit Anfragen überschüttet wird. Dabei wird auch geprüft, ob die gerade
-angezeigte Show **noch** dieselbe und **noch** live ist: Ist der Streamer offline,
-verschwindet die Kachel; hat er inzwischen eine neue Show gestartet, wechselt die
-Kachel auf den neuen Link.
-
-Die Prüfung läuft in einem unsichtbaren Whatnot-Fenster im Hintergrund – dadurch
-gelten Anmeldung und Herkunft wie bei einem normalen Besuch der Seite.
-
-### Wenn eine Show endet
-
-Auf die reguläre Runde allein zu warten hieße, dass eine beendete Show noch bis
-zu zwei Minuten mit einem stehenden Bild im Raster hängt. Die Kachel selbst sieht
-es früher, denn sie hat drei Anzeichen:
-
-1. die Adresse ist keine Show-Adresse mehr (Whatnot leitet weiter),
-2. der Player ist gar nicht mehr da,
-3. das Bild steht – die Laufzeit des Videos rührt sich seit 15 Sekunden nicht.
-
-Entschieden wird in der Kachel aber nichts: Sie meldet nur einen **Verdacht**, und
-die App holt daraufhin die Profilseite – die einzige Stelle, die es sicher weiß.
-Ein Fehlalarm (kurzes Ruckeln, angehaltenes Video) kostet damit eine zusätzliche
-Abfrage und sonst nichts; je Kachel höchstens eine alle 45 Sekunden. Bleibt das
-Bild stehen, wird der Verdacht in Abständen erneuert, statt es bei einem Anlauf
-zu belassen. Gemessen vom Stillstand bis zur Nachfrage: **rund 20 Sekunden**.
-
-## Was gerade unter dem Hammer ist
-
-Am unteren Rand jeder Kachel läuft eine schmale Zeile mit dem aktuellen Los:
-
-| Teil | Bedeutung |
+| | |
 | --- | --- |
-| **Titel** | Das Los, das gerade läuft – inklusive Losnummer, z. B. *Amazon A/B Ware #78*. |
-| **Betrag** | Was das **nächste** Gebot kosten würde. Liegst du selbst vorn, wird der Betrag grün. |
-| **inkl. Versand** | Klein darunter: was das Los mit Versand zusammen kostet. Erscheint nur, wenn Whatnot beide Beträge wirklich nennt – geschätzt wird nichts. Läuft der Versand bei diesem Verkäufer heute schon, steht dort das Gebot selbst, weil kein zweiter Versand mehr dazukommt. Abschaltbar unter *Einstellungen → Anzeige*. |
-| **Countdown** | Restzeit bis zum Hammer. Unter zehn Sekunden wird die Anzeige rot und pocht. |
-| **LKW-Symbol** | Bei diesem Verkäufer läuft der Versand heute schon (siehe unten). |
+| **1. Anmelden** | Ohne Anmeldung zeigt Whatnot nur ein Vorschaubild. Die Anmeldung läuft in einem eigenen Fenster **direkt bei Whatnot** – die App sieht dein Passwort nie. |
+| **2. Name erkannt** | Deinen Whatnot-Namen liest die App selbst aus. Eintippen musst du nichts. |
+| **3. Streamer eintragen** | Namen ins Feld, mehrere mit Komma getrennt. Profil-Links gehen auch. |
+| **4. Fertig** | Ab jetzt läuft es allein. |
 
-Die Zeile gehört zur App, nicht zur Seite – sie bleibt deshalb auch in kleinen
-Kacheln lesbar, statt mitzuschrumpfen. Sie liegt **nicht über** der Seite,
-sondern bekommt eigenen Platz unter ihr: Als Überlagerung stand sie zwangsläufig
-über Whatnots eigener Bedienung – unten über der Produktkarte und dem gelben
-Gebots-Knopf, oben über Name und „Folgen“ –, und zwei Schriften übereinander
-liest niemand.
+Du kannst jederzeit abbrechen – beim nächsten Start geht es an derselben Stelle weiter,
+und über *Einstellungen → Setup erneut starten* kommst du wieder hin.
 
-Ihre 30 Pixel kommen zur Videofläche **hinzu**, statt von ihr abzugehen: Die
-Fläche darüber behält damit genau das Hochformat der Streams, und das Bild füllt
-sie ohne schwarze Ränder an den Seiten. Aus demselben Grund ist die Höhe fest und
-die Zeile bleibt auch zwischen zwei Losen stehen – eine mitwachsende oder
-verschwindende Leiste gäbe jeder Kachel eine andere Bildhöhe, und das Raster
-zuckte bei jedem Zuschlag.
+## Bedienen
 
-Gelesen wird direkt in der Kachel, im Takt von 0,7 Sekunden, und gemeldet wird
-nur, wenn sich etwas geändert hat. Die Show-Oberfläche hat dafür benannte
-Haltepunkte (`show-product-title`, `show-timer`, `show-bid-button`,
-`show-winning-status`, `show-winner-message`, `show-shipping-info`); ändert
-Whatnot deren Namen, bleibt die Zeile leer, alles andere läuft weiter.
+<img src="docs/bilder/raster-menue.jpg" alt="Das Raster-Menü mit Spaltenzahl und Ausrichtung">
 
-## Versand-Bündelung
+Die Kopfleiste **ist die Titelleiste** – ziehen, Doppelklick maximiert. Rechts sitzen die
+Symbole, von links nach rechts:
 
-Whatnot fasst den Versand pro Verkäufer und Tag zusammen: Hast du bei einem
-Verkäufer heute schon etwas ersteigert, kostet das nächste Los dort **keinen
-zweiten Versand**. Beim Vergleich zweier Kacheln übersieht man das leicht – das
-gleiche Teil ist beim „teureren" Verkäufer unterm Strich womöglich günstiger.
+<img src="docs/bilder/leiste.png" width="404" alt="Die Symbolleiste der App">
 
-Die App merkt sich deshalb, wo heute schon ein Zuschlag gefallen ist, und setzt
-auf diese Kachel ein LKW-Symbol (mit Anzahl, wenn es mehrere Lose waren). Der
-Hinweistext nennt auch die Versandkosten des Verkäufers, so wie die Show sie
-angibt. Am nächsten Tag verfällt der Merker von selbst.
+| Symbol | Was es tut |
+| --- | --- |
+| **Raster** | Spalten (Auto oder 1–6) und Ausrichtung (links, Mitte, rechts, verteilt). |
+| **Sendeturm** | Sofort nachsehen, wer live ist – statt auf die nächste Runde zu warten. |
+| **Sprechblase** | Alle Kacheln umschalten: ganze Seite → ohne Chat → nur Video. |
+| **Lautsprecher** | Alles stummschalten. |
+| **Kreispfeile** | Alle Kacheln neu laden. |
+| **Pfeil in die Tür** | Anmelden oder Konto wechseln. Leuchtet gelb, solange ein Konto erkannt ist. |
+| **Schieberegler** | Einstellungen. |
+| **Shows** | Streamer verwalten und neue entdecken. |
 
-Damit die App erkennt, dass **du** den Zuschlag bekommen hast, braucht sie deinen
-Whatnot-Usernamen – **eintippen musst du ihn nicht**: Er wird beim Anmelden aus
-der Seite gelesen und bleibt gespeichert (siehe *Konto*). Unter *Shows* steht er
-dann schon da und lässt sich bei Bedarf überschreiben. Ohne Anmeldung lässt sich
-der Merker im Rechtsklick-Menü der Kachel von Hand setzen und wieder entfernen.
+Ein **durchgestrichenes Auge** kommt links dazu, sobald versteckte Streamer live sind –
+mit einer Zahl, wie viele.
+
+Und an der Kachel selbst:
+
+- **Vergrößern** zeigt eine Show in voller Größe mit Shop und Gebots-Knöpfen. **Nur dort lässt sich bieten.** Zurück mit `Esc`.
+- **Rechtsklick** öffnet das Menü. **Rechtsklick halten und ziehen** sortiert die Kacheln um.
+- Klick auf den **Lautsprecher** holt den Ton zu dieser Kachel.
+
+> Whatnots eigene Kopfzeile über dem Video – Profilbild, Name, Bewertung, „Folgen",
+> Zuschauerzahl – ist ausgeblendet. Das steht in der Kachelleiste schon.
 
 ## Max-Gebot
 
-Neben Whatnots gelbem Gebots-Knopf steht ein zweiter: **Max**. Dort trägst du ein,
-bis wohin du bei *diesem* Los mitgehen willst. Ist das nächste Gebot darüber,
-verschwindet der gelbe Knopf und an seiner Stelle steht, warum – versehentlich
-über die eigene Grenze klicken geht dann nicht mehr. Mit dem nächsten Los fängt
-alles wieder von vorn an.
+Neben dem gelben Gebots-Knopf sitzt ein zweiter: **Max**. Dort trägst du ein, bis wohin du
+bei *diesem* Los mitgehen willst.
 
-**Geboten wird nie von selbst.** Die App liest den Gebots-Knopf und blendet ihn
-aus; betätigt wird er unter keinen Umständen. Ein Max-Gebot im Sinne von
-„automatisch bis X mitbieten" ist das also ausdrücklich *nicht*, sondern eine
-Bremse gegen den eigenen Klickfinger.
+<table>
+<tr>
+<td width="50%"><img src="docs/bilder/max-offen.jpg" alt="Der Max-Knopf mit der Eingabe „Höchstens mitgehen bis“"></td>
+<td width="50%"><img src="docs/bilder/max-erreicht.jpg" alt="Der Gebots-Knopf ist verschwunden, an seiner Stelle steht „Grenze 21 € erreicht“"></td>
+</tr>
+<tr>
+<td>Grenze eintragen …</td>
+<td>… und darüber ist der Gebots-Knopf weg.</td>
+</tr>
+</table>
 
-Der Knopf erscheint nur, solange eine Auktion läuft – er reiht sich in dieselbe
-Zeile wie „Definiert" und der Gebots-Knopf ein, der dafür schmaler wird. In der
-Los-Leiste am Kachelrand steht die gesetzte Grenze mit, sodass man sie auch im
-Raster sieht.
+**Geboten wird nie von selbst.** Die App liest den Gebots-Knopf und blendet ihn aus –
+gedrückt wird er unter keinen Umständen. Das ist also *kein* Bietagent, sondern eine
+Bremse gegen den eigenen Klickfinger. Mit dem nächsten Los fängt alles wieder von vorn an.
 
-Unter *Einstellungen → Bieten*:
+In *Einstellungen → Bieten* lässt sich das abschalten und ein **Spielraum** setzen:
+bei 5 € Spielraum und einer Grenze von 40 € bleibt der Knopf bis 45 € stehen.
 
-| Schalter | Wirkung |
-| --- | --- |
-| **Max-Gebot je Auktion** | Schaltet den Knopf ab; ein ausgeblendeter Gebots-Knopf kommt sofort zurück. |
-| **Spielraum über der Grenze** | So weit darf über die eingetragene Grenze hinaus geboten werden. Bei 5 € Spielraum und einer Grenze von 40 € bleibt der Knopf bis einschließlich 45 € stehen und verschwindet ab 46 €. |
+## Neue Streams entdecken
 
-## Die Beitritts-Meldung
+<img src="docs/bilder/entdecken.jpg" alt="Der Entdecken-Reiter mit Vorschaubildern laufender Shows">
 
-Beim Betreten einer Show wirft Whatnot „Herzlich Willkommen! Du nimmst an einer
-Show von … teil" hoch. Bei einer Wand aus Kacheln erscheint die reihum in jeder
-einzelnen, deshalb wird sie unterdrückt – aber **nur diese eine**, erkannt am
-Wortlaut. Fehlermeldungen und Gebotshinweise bleiben stehen.
+Der zweite Reiter im Shows-Fenster zeigt, was gerade auf **deiner** Whatnot-Startseite läuft –
+mit Vorschaubild, Titel und Zuschauerzahl, nach Zuschauern sortiert. Ein Klick nimmt den
+Verkäufer in deine Liste auf, die Kachel erscheint dann von selbst.
 
-Wichtig dabei: Whatnot zeigt sie teils nicht als Einblendung, sondern als
-`<dialog>`, geöffnet mit `showModal()`. So einer ist etwas völlig anderes –
-solange er offen ist, erklärt der Browser den **ganzen Rest der Seite** für
-unbedienbar. Ihn zu verstecken nimmt ihm das nicht: Er wäre dann unsichtbar
-*und* nicht mehr wegzuklicken, und in der Kachel ließe sich nirgends mehr etwas
-anklicken – auch nicht in der Großansicht, denn es ist der Zustand der Seite und
-nicht der der Kachel. Ein solcher Dialog wird deshalb **geschlossen**.
+## Preis inklusive Versand
 
-Als Notbremse gegen dieselbe Falle, egal wer sie aufstellt: Ein offener modaler
-Dialog, der nichts zeichnet, wird nach zwei Proben ohne Rücksicht auf den
-Wortlaut geschlossen. Ein Dialog, der unsichtbar ist und zugleich jede Eingabe
-sperrt, hat keinen sinnvollen Zweck.
+Am unteren Kachelrand steht, was gerade unter dem Hammer ist: Titel, nächstes Gebot,
+Restzeit – und klein darunter der Preis **mit Versand**. Gerechnet wird nur mit dem, was
+auf der Seite steht; nennt Whatnot keine Versandkosten, steht dort auch nichts.
 
-## Whatnots eigene Kopfzeile
-
-Über dem Videobild liegt bei Whatnot eine Kopfzeile mit Profilbild, Name des
-Streamers, Bewertung, „Folgen" und Zuschauerzahl. Genau das steht in der
-Kachelleiste der App schon – zweimal dasselbe kostet nur Bild, deshalb ist sie
-ausgeblendet.
-
-Ausgeblendet wird über `visibility`, nicht über `display`: Die Kopfzeile ist eine
-eigene Zeile im Raster des Players, und die fiele bei `display: none` in sich
-zusammen – alles darunter, bis hin zum Gebots-Knopf, rückte um ihre Höhe nach
-oben. Getroffen wird über den beständigen Teil des Klassennamens, denn Whatnot
-hängt seinen CSS-Bausteinen bei jedem Bau eine neue Endung an.
-
-## Konto: Anmelden und Namenserkennung
-
-Das Anmelde-Symbol öffnet ein eigenes Fenster direkt bei Whatnot – **dein Passwort
-sieht die App nie**. Sie sieht der Seite nur zu und wartet, bis dort ein
-angemeldeter Nutzer auftaucht; dann meldet das Fenster kurz *Angemeldet als …*,
-schließt sich von selbst, und **alle offenen Streams werden neu geladen**, damit
-sie sofort mit dem neuen Konto laufen. Brichst du ab oder schließt das Fenster,
-passiert nichts davon – dann wird auch nichts neu geladen.
-
-### Wie der Name erkannt wird
-
-Whatnot legt den angemeldeten Nutzer in jede Seite
-(`window.__whatnot__.loggerContext.usr.name`) – aber **nur beim echten
-Seitenaufruf**. Ein `fetch` derselben Adresse bekommt die Nutzerdaten nicht mit,
-auch mit Anmeldung nicht. Genau daran ging die Erkennung eine Zeit lang vorbei,
-weshalb die App sich für abgemeldet hielt, obwohl die Sitzung stand.
-
-Gelesen wird deshalb an einer dritten Stelle: Whatnot legt dieselben Angaben in
-den `localStorage` der Herkunft, und der ist auch auf der `robots.txt` lesbar,
-auf der der Prüfhelfer ohnehin parkt. Das kostet keine Anfrage und ist in
-Millisekunden da – auch gleich nach einer Aktualisierung, denn die Anmeldung
-überlebt sie.
-
-Steht dort nichts, gibt es einen zweiten Weg: eine echte Navigation, die ein paar
-Sekunden dauert. Sie wird nur beschritten, wenn die Sitzungs-Cookies überhaupt
-eine Anmeldung nahelegen – ohne die ist niemand angemeldet und es gibt nichts
-nachzusehen. Der Stand steht unter *Einstellungen → Konto*.
-
-## Ausgeschlossene Konten
-
-Bestimmte Whatnot-Konten können von der Nutzung ausgeschlossen werden. Die Liste
-dafür enthält **keine Klarnamen**, sondern nur den SHA-256-Abdruck des
-normalisierten Usernamens – wer sie in die Hände bekommt, erfährt daraus nicht,
-um wen es geht. Normalisiert wird immer gleich: Leerraum weg, führendes `@` weg,
-alles klein; `  @Foo ` und `foo` ergeben also denselben Abdruck.
-
-### Wo die Liste liegt
-
-Sie liegt **im Netz, nicht in der App**:
-
-```
-https://raw.githubusercontent.com/zqqqqx/whatnot-multistream/main/banned-users.json
-```
-
-Das ist der entscheidende Punkt. Läge sie im Installer, würde eine Sperre erst
-greifen, wenn der Betroffene freiwillig eine neue Fassung einspielt – und genau
-das wird er nicht tun. So fragt stattdessen jeder Client alle **30 Minuten**
-nach; eintragen und streichen wirkt damit im laufenden Betrieb, ohne Release.
-
-### Jemanden sperren
-
-1. Abdruck bilden: `node tools/ban-hash.js <username>`
-2. Den Abdruck in `banned-users.json` unter `hashes` eintragen – geht auch
-   direkt über die Bearbeiten-Funktion auf GitHub.
-3. Fertig. Innerhalb einer halben Stunde greift es überall; wer die App neu
-   startet, ist sofort dran.
-
-Die Liste wird mit wechselnder Adresse geholt: GitHubs Ausliefernetz hält die
-Datei sonst einige Minuten fest und beachtet dabei kein `no-cache` – eine frische
-Sperre griffe dann Minuten später als nötig.
-
-Streichen hebt die Sperre auf demselben Weg wieder auf.
-
-### Was passiert
-
-Geprüft wird **beim Start, bevor die erste Show geöffnet wird** – zuerst gegen
-den gemerkten Stand, dann gegen die frisch geholte Liste. Ein gesperrtes Konto
-bekommt so keine Sekunde lang Streams zu sehen; die Suche nach laufenden Shows
-beginnt erst, wenn feststeht, wer da ist. Wer nicht gesperrt ist, merkt davon
-nichts: Das Ganze ist in gut einer halben Sekunde erledigt.
-
-Danach wird bei jeder erkannten Anmeldung und bei jedem halbstündlichen Abgleich
-erneut geprüft. Ein Treffer legt die App still: keine Kacheln, keine Prüfung, ein
-Hinweis, dass dieses Konto nicht zur Nutzung berechtigt ist. Wird jemand wieder
-gestrichen, baut sich das Fenster beim nächsten Abgleich von selbst neu auf.
-
-Der zuletzt geholte Stand bleibt im Datenordner liegen. Das ist kein
-Zwischenspeicher aus Bequemlichkeit, sondern der Grund, warum sich eine Sperre
-nicht durch Netzstecker aushebeln lässt: Ist die Liste gerade nicht erreichbar,
-gilt die zuletzt bekannte. Umgekehrt entsteht ohne Liste auch keine neue Sperre –
-zwischen „steht nicht drin" und „weiß ich nicht" wird unterschieden.
-
-Woher die Liste kommt, steckt allein in `bans.js`. Eine zweite Quelle – etwa ein
-eigener Server – ließe sich dort einhängen, ohne dass der Rest der App etwas
-davon merkt; er kennt nur `status()`.
-
-## Einrichtung beim ersten Start
-
-Beim allerersten Start führt ein Assistent der Reihe nach durch das, was einmal zu
-tun ist: kurze Erklärung, Anmeldung, Bestätigung des erkannten Namens, Streamer
-eintragen, das Wichtigste zur Bedienung. Der Fortschritt wird nach jedem Schritt
-gemerkt – wer abbricht, macht beim nächsten Start an derselben Stelle weiter, wer
-durch ist, sieht ihn nie wieder. Über *Einstellungen → Einrichtung* lässt er sich
-jederzeit erneut starten.
-
-Wer die App schon benutzt hat, bekommt ihn nach einer Aktualisierung **nicht**
-vorgesetzt: Eine vorhandene Streamerliste gilt als erledigte Einrichtung.
+Dazu kommt ein Kniff, den man leicht übersieht: Whatnot bündelt den Versand pro Verkäufer
+und Tag. Hast du dort heute schon etwas ersteigert, kostet das nächste Los **keinen zweiten
+Versand** – die Kachel bekommt dann ein LKW-Symbol, und die Summe rechnet ohne Versand weiter.
 
 ## Einstellungen
 
-Das Schieberegler-Symbol oben öffnet drei Reiter:
+<img src="docs/bilder/einstellungen.jpg" alt="Die allgemeinen Einstellungen">
 
-| Reiter | Inhalt |
+Drei Reiter: **Allgemein** (Start, Raster, Anzeige, Bieten, Maßstab), **Konto** (erkannter
+Name, anmelden, Konto wechseln) und **Updates & Über**.
+
+Der Regler **Maßstab im Raster** ist der interessanteste: Er entscheidet, wie viel von
+Whatnots Oberfläche in eine Kachel passt. Nach links wird die Seite größer gezeigt – mehr
+Videobild, weniger Chat. Nach rechts umgekehrt.
+
+---
+
+# Unter der Haube
+
+Ab hier wird es technisch. Für die Benutzung brauchst du davon nichts.
+
+<details>
+<summary><b>Warum eine App und keine Webseite?</b></summary>
+
+Whatnot verbietet das Einbetten seiner Seiten in fremde Webseiten
+(`X-Frame-Options: SAMEORIGIN`). Im Browser lässt sich deshalb nichts bauen, das mehrere
+Streams nebeneinander zeigt. Diese App bettet sie nicht ein, sondern öffnet sie als
+eigenständige Browser-Fenster im selben App-Fenster (Electron `<webview>`) – dafür gilt die
+Sperre nicht.
+
+</details>
+
+<details>
+<summary><b>Wie die App merkt, wer live ist</b></summary>
+
+Eine Profilseite listet laufende **und** nur geplante Shows nebeneinander auf – der Link
+allein sagt also nichts. Die App liest deshalb den Status aus den Daten, die in der Seite
+mitgeliefert werden: `PLAYING` wird geöffnet, `CREATED` ignoriert. Fällt dieser Weg aus,
+erkennt sie die laufende Show am roten **Live**-Aufkleber.
+
+Geprüft wird alle zwei Minuten, ein Profil nach dem anderen, damit Whatnot nicht mit
+Anfragen überschüttet wird. Das läuft in einem unsichtbaren Whatnot-Fenster im Hintergrund –
+Anmeldung und Herkunft gelten dort wie bei einem normalen Besuch.
+
+</details>
+
+<details>
+<summary><b>Wenn eine Show endet</b></summary>
+
+Auf die nächste Runde zu warten hieße, dass eine beendete Show noch bis zu zwei Minuten mit
+stehendem Bild herumhängt. Die Kachel sieht es früher – sie hat drei Anzeichen:
+
+1. die Adresse ist keine Show-Adresse mehr,
+2. der Player ist weg,
+3. das Bild steht seit 15 Sekunden.
+
+Entschieden wird in der Kachel aber nichts. Sie meldet nur einen **Verdacht**, und die App
+holt daraufhin die Profilseite – die einzige Stelle, die es sicher weiß. Ein Fehlalarm
+kostet damit eine Abfrage und sonst nichts. Vom Stillstand bis zur Nachfrage: **rund 20
+Sekunden**.
+
+</details>
+
+<details>
+<summary><b>Warum die Kacheln hochkant sind</b></summary>
+
+Whatnot sendet im Handy-Format, und im schmalen Fenster zeigt die Seite ihr Handy-Layout mit
+Video **und** Chat übereinander. Genau das passt in eine Kachel, ohne dass schwarze Ränder
+bleiben.
+
+Jede Kachel zeigt die Seite dabei mit immer **derselben logischen Breite** – die Kachelgröße
+bestimmt nur den Maßstab. Dadurch bleibt das Verhältnis von Chat zu Videobild überall
+gleich: Bei wenigen großen Kacheln wird der Chat einfach größer, statt dass Whatnot auf ein
+breiteres Layout umschaltet. Wie breit gezeichnet wird, stellt der Regler *Maßstab im
+Raster* ein.
+
+Das Raster rechnet in beiden Fällen gleich: Gesucht wird die Größe, bei der alle Kacheln
+zugleich ins Fenster passen. Nur wenn sie dabei unter 190 Pixel fielen, füllen sie die
+Spaltenbreite und es wird gescrollt.
+
+</details>
+
+<details>
+<summary><b>Anmeldung und Namenserkennung</b></summary>
+
+Passwörter sieht die App nie – die Anmeldung läuft in einem eigenen Fenster direkt bei
+Whatnot. Erkannt wird nur, *dass* sie geklappt hat, und *wer* angemeldet ist.
+
+Whatnot legt den angemeldeten Nutzer in jede Seite, aber **nur beim echten Seitenaufruf**;
+eine Hintergrundabfrage derselben Adresse bekommt die Daten nicht mit, auch angemeldet
+nicht. Gelesen wird deshalb an einer anderen Stelle: Whatnot legt dieselben Angaben in den
+lokalen Speicher der Domain, und der ist auch auf der `robots.txt` lesbar, auf der der
+Prüfhelfer ohnehin parkt. Das kostet **keine einzige Anfrage** und ist in Millisekunden da –
+auch direkt nach einem Update, denn die Anmeldung überlebt es.
+
+Steht dort nichts, gibt es einen zweiten, langsameren Weg. Der wird nur beschritten, wenn
+die Cookies überhaupt eine Anmeldung nahelegen.
+
+</details>
+
+<details>
+<summary><b>Die Beitritts-Meldung – und warum sie geschlossen statt versteckt wird</b></summary>
+
+Beim Betreten einer Show wirft Whatnot „Herzlich Willkommen! Du nimmst an einer Show von …
+teil" hoch. Bei einer Wand aus Kacheln erscheint die reihum in jeder einzelnen, deshalb wird
+sie unterdrückt – aber **nur diese eine**, erkannt am Wortlaut. Fehlermeldungen und
+Gebotshinweise bleiben stehen.
+
+Der Haken: Whatnot zeigt sie teils als modalen Dialog. Solange so einer offen ist, erklärt
+der Browser den **ganzen Rest der Seite** für unbedienbar. Ihn nur zu verstecken nimmt ihm
+das nicht – er wäre dann unsichtbar *und* nicht mehr wegzuklicken, und in der Kachel ließe
+sich nirgends mehr klicken, auch nicht in der Großansicht. Er wird deshalb **geschlossen**.
+
+Als Notbremse gilt dasselbe für jeden offenen modalen Dialog, der nichts zeichnet, egal wer
+ihn aufstellt: unsichtbar sein *und* jede Eingabe sperren ergibt keinen sinnvollen Zustand.
+
+</details>
+
+<details>
+<summary><b>Ausgeschlossene Konten</b></summary>
+
+Bestimmte Whatnot-Konten können von der Nutzung ausgeschlossen werden. Die Liste enthält
+**keine Klarnamen**, sondern nur den SHA-256-Abdruck des normalisierten Usernamens – wer sie
+in die Hände bekommt, erfährt daraus nicht, um wen es geht.
+
+Sie liegt **im Netz, nicht in der App**: Läge sie im Installer, griffe eine Sperre erst,
+wenn der Betroffene freiwillig aktualisiert – und genau das wird er nicht tun. Stattdessen
+fragt jeder Client alle 30 Minuten nach.
+
+Jemanden sperren:
+
+```bash
+node tools/ban-hash.js <username>     # Abdruck bilden
+```
+
+Den Abdruck in [`banned-users.json`](banned-users.json) unter `hashes` eintragen, fertig.
+Streichen hebt die Sperre auf demselben Weg wieder auf.
+
+Geprüft wird **beim Start, bevor die erste Show geöffnet wird** – ein gesperrtes Konto
+bekommt keine Sekunde lang Streams zu sehen. Wer nicht gesperrt ist, merkt davon nichts:
+Das Ganze ist in gut einer halben Sekunde erledigt.
+
+</details>
+
+<details>
+<summary><b>Was gespeichert wird – und was nicht</b></summary>
+
+Alles liegt lokal in einer Datei im Datenordner der App:
+
+| Was | |
 | --- | --- |
-| **Allgemein** | Verhalten beim Start (sofort prüfen, Ton der letzten Sitzung wieder aufnehmen), Raster (Spalten und Ausrichtung), Anzeige (Ansicht der Kacheln, Los-Leiste, Preis inklusive Versand), Bieten (Max-Gebot, Spielraum), Maßstab im Raster, Assistent erneut starten. |
-| **Konto** | Erkannter Username, Anmeldestatus, anmelden bzw. Konto wechseln. |
-| **Updates & Über** | Installierte Version, *Nach Updates suchen* mit verständlicher Antwort, Herunterladen bzw. Neustarten, Link zum Projekt. |
-
-Raster und Kachelansicht stehen zugleich in der Kopfleiste – beide Wege zeigen
-immer denselben Stand, es ist derselbe Block an zwei Stellen.
-
-## Bedienung
-
-Die Kopfleiste **ist zugleich die Titelleiste**: Die Windows-Leiste mit ihren drei
-Knöpfen ist weg, gezogen wird an der App-Leiste selbst, Doppelklick darauf
-maximiert und stellt wieder her. Rechts außen sitzen Minimieren,
-Maximieren/Wiederherstellen und Schließen im Stil der übrigen Oberfläche; das
-mittlere Symbol zeigt, was der Klick tut. An den Fensterkanten lässt sich weiter
-ganz normal ziehen.
-
-Links der Zähler, dazwischen die Symbole:
-
-| Element | Funktion |
-| --- | --- |
-| **Shows** | Streamer hinzufügen, verstecken, entfernen – und im zweiten Reiter entdecken, was gerade auf der Startseite läuft (siehe oben). |
-| **Augen-Symbol mit Zahl** | Erscheint, sobald es versteckte Streamer gibt; die Zahl sagt, wie viele davon gerade live sind. Ein Klick zeigt deren Vorschaubilder – ein Klick auf eine Karte holt den Streamer zurück ins Raster. |
-| **Raster** (Kacheln-Symbol) | Klappt zwei Reihen auf: **Spalten** (Auto oder 1–6) und **Ausrichtung** (links, Mitte, rechts, verteilt). Beides wirkt auf dasselbe Bild. |
-
-### Wie das Raster rechnet
-
-Beide Regler wirken auf dasselbe Bild. Gerechnet wird in jedem Fall gleich: Die
-Kachel ist im Handy-Format (die Los-Leiste kommt darunter *hinzu*), und gesucht
-wird die Größe, bei der alle Kacheln zugleich ins Fenster passen. Nur wenn sie
-dabei unbrauchbar klein würden – unter 190 Pixel Breite –, füllen sie stattdessen
-die Spaltenbreite und die Bühne bekommt einen Rollbalken. Früher waren das zwei
-getrennte Modi mit verschiedenen Regeln; das stammte noch aus der Zeit, als die
-Kacheln im Querformat lagen.
-
-**Spalten** – „Auto" sucht die Zahl, bei der das Streambild am größten wird;
-1 bis 6 legen sie fest.
-
-**Ausrichtung** – wohin die Kacheln rücken, wenn die Reihe nicht voll wird oder
-die Spalten schmaler sind als das Fenster: **links**, **Mitte**, **rechts** oder
-**verteilt** (der übrige Platz kommt gleichmäßig zwischen die Spalten). Bei einer
-einzigen Spalte gibt es zwischen den Spalten nichts zu verteilen – dann steht sie
-in der Mitte.
-
-Egal wie viele Streams laufen und wie groß das Fenster ist: jede Kachel zeigt die
-Seite mit immer derselben logischen Breite, die Kachelgröße bestimmt nur den
-Maßstab. Das Verhältnis von Chat zu Videobild bleibt dadurch überall gleich –
-bei drei großen Kacheln wird der Chat einfach größer, statt dass Whatnot auf ein
-breiteres Layout mit schmalem Chat umschaltet.
-
-Wie breit die Seite gezeichnet wird, stellst du unter *Einstellungen → Maßstab im
-Raster* ein. Das ist zugleich der Regler **Video gegen Oberfläche**: Nach links
-wird die Seite größer gezeigt – das Videobild füllt mehr Kachel, vom Chat ist
-weniger zu sehen. Nach rechts passt mehr Oberfläche hinein und das Bild wird
-kleiner. Betroffen ist nur das Raster; die Großansicht läuft immer in
-Originalgröße.
-| **Sprechblase** | Schaltet **alle** Kacheln gemeinsam im Kreis: ganze Seite → ohne Chat → nur Video. Legt zugleich fest, womit neu auftauchende Kacheln starten. |
-| **Sendeturm** | Prüfung sofort starten, statt auf das 2-Minuten-Intervall zu warten. |
-| **Lautsprecher / Kreispfeile** | Alle stummschalten bzw. alle Kacheln neu laden. |
-| **Anmelde-Symbol** | Öffnet das Anmeldefenster. Nach erfolgreicher Anmeldung schließt es sich von selbst und alle Streams werden neu geladen (siehe *Konto*). Leuchtet gelb, solange ein Konto erkannt ist. |
-| **Schieberegler** | Einstellungen: Allgemein, Konto, Updates & Über. |
-
-Je Kachel, in der Kopfzeile (erscheint beim Überfahren):
-
-| Symbol | Funktion |
-| --- | --- |
-| **Lautsprecher** | Ton läuft immer nur auf einer Kachel – Klick schaltet dorthin um. |
-| **Sprechblase** | Schaltet die Ansicht im Kreis: **ganze Seite** → **ohne Chat** (Shop, Preis und Gebots-Schaltflächen bleiben) → **nur Video**. Das Rechtsklick-Menü hat beide Schritte auch einzeln. Gilt nur fürs Raster – in der Großansicht ist der Knopf deshalb ausgeblendet. |
-| **Pfeil aus dem Kasten** | Diese Show im richtigen Browser öffnen. |
-| **Vergrößern / Verkleinern** | Großansicht: Kachel füllt das Fenster in **Originalgröße und Desktop-Layout** – Shop, Produkte und Gebote sind bedienbar. Dort sind Chat und Oberfläche **immer da**, unabhängig davon, was im Raster eingestellt ist; beim Verkleinern kommt genau der Rasterzustand zurück (Chat im Raster ausgeblendet → in der Großansicht sichtbar → danach wieder ausgeblendet). Beim Vergrößern läuft der Ton dieser Show, beim Verkleinern wieder der Zustand von vorher. Verkleinern geht auch mit Esc. |
-| **Kreispfeil** | Show neu laden. |
-
-Weitere Griffe:
-
-| Aktion | Funktion |
-| --- | --- |
-| **Rechtsklick auf eine Kachel** | Menü mit *Groß anzeigen*, *Nur Video zeigen*, *Im Browser öffnen*, *Versand läuft heute schon*, *Neu laden*, *User verstecken* und *User entfernen*. |
-| **Rechtsklick halten und ziehen** | Kacheln umsortieren. Die Streams laufen dabei weiter – die Reihenfolge wird nur über CSS gesetzt, die Kacheln werden nicht neu geladen. |
-
-Solange keine Kachel läuft, zeigt die Bühne, woran die App gerade ist: beim Start
-ein Radar mit dem Namen des Profils, das gerade geprüft wird, danach entweder die
-laufenden Shows oder die Meldung, dass niemand sendet (mit Hinweis, falls nur
-versteckte Streamer live sind).
-
-Cookie-Banner werden in jeder Kachel automatisch mit „Nur notwendige" geschlossen;
-dafür gibt es bewusst keinen Schalter mehr.
-
-Ebenfalls automatisch weg ist Whatnots Einblendung *„Du nimmst jetzt an … Stream
-teil"*: Bei einer Wand aus Kacheln erscheint sie reihum in jeder einzelnen und
-verdeckt jedes Mal ein Stück Bild. Ausgeblendet wird **nur diese eine Meldung**,
-erkannt am Wortlaut (deutsch und englisch) – Fehlermeldungen, Gebotshinweise und
-alles andere bleiben stehen.
-
-### Wo die Liste liegt
-
-Streamerliste, Einstellungen und Versand-Merker stehen als eigene Datei
-`wnms-store.json` im Datenordner der App (`%APPDATA%\whatnot-multistream`).
-Früher lagen sie im `localStorage` des Fensters – und das benutzt dieselbe
-Ablage-Partition wie die Streams selbst, die Liste stand also mitten in mehreren
-hundert Megabyte Whatnot-Daten. Wird davon etwas verworfen, war sie weg.
-
-Geschrieben wird über eine Nebendatei, die anschließend in einem Zug an ihren
-Platz gezogen wird: Ein Absturz mitten im Schreiben kann so keine halbe Datei
-hinterlassen. Die vorige Fassung bleibt als `.bak` liegen; ist die Hauptdatei
-unbrauchbar, wird daraus gelesen **und sie sofort wiederhergestellt**. Zur
-Sicherung befördert wird immer nur eine Datei, die sich auch lesen lässt.
-
-Darin steht alles, was du einstellst, und es steht beim nächsten Start wieder da:
-
-| Was | Wo es hängt |
-| --- | --- |
-| Streamerliste, versteckt-Markierung | je Streamer |
-| **Reihenfolge der Kacheln** | die Reihenfolge der Liste – beim Umsortieren per Rechtsklick-Ziehen mitgeschrieben |
-| **Ansicht je Kachel** (ganze Seite / ohne Chat / nur Video) | je Streamer, gilt auch nach einem Neuaufbau der Kachel |
-| Ansicht für alle, Spalten und Ausrichtung, eigener Username | allgemeine Einstellungen |
-| **Erkanntes Konto und Sperrvermerk** | schreibt der Hauptprozess, nicht das Fenster |
-| **Zuletzt geholte Sperrliste** | damit eine Sperre auch ohne Netz gilt |
-| **Fortschritt der Einrichtung** | Schritt und ob sie abgeschlossen ist |
-| **Alle Schalter der Einstellungen** | Startverhalten, Los-Leiste, Preis inklusive Versand, Max-Gebot und Spielraum, Maßstab im Raster |
-| **Welcher Stream Ton hat** | wird wieder aufgenommen, sobald die Kachel da ist |
-| **Fenstergröße, -lage und Vollbild** | wird beim Verschieben gemerkt |
+| Streamerliste, Reihenfolge, versteckt-Markierung | je Streamer |
+| Ansicht je Kachel (ganze Seite / ohne Chat / nur Video) | je Streamer |
+| Raster, Ansicht für alle, alle Schalter der Einstellungen | allgemein |
+| Erkanntes Konto, zuletzt geholte Sperrliste | schreibt der Hauptprozess |
+| Fenstergröße und -lage, welcher Stream Ton hat | |
 | Versand-Merker | je Streamer, gilt für den laufenden Tag |
 
-Ein vorangestelltes Byte-Order-Mark – etwa weil die Datei mit einem Editor
-angefasst wurde – wird beim Lesen abgestreift, statt die Ablage fälschlich für
-beschädigt zu halten.
+**Nicht** gespeichert wird: dein Passwort (sieht die App nie) und irgendetwas auf einem
+fremden Server. Die App spricht mit genau zwei Gegenstellen: whatnot.com und GitHub
+(Updates und Sperrliste).
 
-Fenster und Hauptprozess schreiben in dieselbe Datei, aber jeder nur **seine
-eigenen** Einträge: Das Fenster gibt ausschließlich das weiter, was es selbst
-geändert hat. Gäbe es stattdessen jedes Mal seine ganze Abschrift vom
-Programmstart heraus, schriebe es Fenstergröße, erkanntes Konto und Sperrvermerk
-auf den Stand von vorhin zurück.
+</details>
 
-Die gemerkte Fensterlage wird beim Start nur übernommen, wenn dort auch wirklich
-ein Bildschirm ist – sonst startet die App unsichtbar, etwa weil der zweite
-Monitor abgesteckt wurde.
+<details>
+<summary><b>Selbst starten und bauen</b></summary>
 
-Die App läuft außerdem nur noch einmal gleichzeitig – ein zweiter Start holt das
-vorhandene Fenster nach vorn, statt sich mit ihm um dieselbe Datei zu streiten.
+```bash
+npm start          # aus dem Quelltext starten
+npm run dist       # Installer nach dist/ bauen
+```
 
-Streamerliste und Einstellungen bleiben nach dem Schließen erhalten. Eine
-vorhandene alte Stream-Liste wird beim ersten Start übernommen: aus jeder
-Profil-Kachel wird ein Streamer, direkte Live-Links entfallen (sie lassen sich
-keinem Namen zuordnen).
+Die installierte Fassung und `npm start` teilen sich denselben Datenordner – die
+Streamerliste ist in beiden dieselbe.
 
-### Wie der Wechsel in den großen Modus abläuft
+Für eine neue Fassung: Version in der `package.json` erhöhen, bauen, und **alle drei
+Dateien** aus `dist/` (Installer, `latest.yml`, `.blockmap`) an ein GitHub-Release mit dem
+Tag `v<version>` hängen. Genau danach sucht die Selbstaktualisierung.
 
-Beim Vergrößern ändert sich zweierlei gleichzeitig: die Kachel wird zur ganzen
-Bühne, und die Seite läuft ab jetzt in Originalgröße statt verkleinert. Whatnot
-baut daraufhin sein Layout um – vom Handy-Format mit Chat unter dem Bild auf die
-Desktop-Ansicht. Dieser Umbau dauert ein paar Bilder und sieht roh aus.
-
-Er passiert deshalb hinter einem Standbild: Von der Kachel wird ein Bild
-gezogen, das sich genau über sie legt und in die neue Größe fährt – erst wenn
-die Seite darunter meldet, dass sie fertig ist, blendet es weg. Zu sehen ist
-nur eine Kachel, die wächst bzw. schrumpft.
-
-Verdeckt wird dabei **nur die eine Kachel**, nicht das ganze Fenster: Beim
-Verkleinern sind die übrigen Streams sofort wieder da, auch wenn die große
-Kachel noch ein, zwei Sekunden braucht. Die anderen Kacheln werden im großen
-Modus auch nicht ausgeblendet, sondern nur unsichtbar zur Seite gelegt – in
-ihrer bisherigen Größe. So bauen sie ihr Layout nicht um und bleiben gezeichnet,
-statt beim Zurückschalten erst sekundenlang schwarz zu sein.
-
-Wann die Seite fertig ist, sagt sie selbst: Ein fester Zeitwert trifft es nie,
-weil Whatnot beim Wechsel zwischen Handy- und Desktop-Ansicht andere Bilder
-nachlädt und das Video neu einhängt. Die Kachel meldet sich deshalb erst, wenn
-sich ihr Layout mehrere Proben lang nicht mehr bewegt **und** das Video wieder
-läuft. Dauert das länger, zeigt der Deckel nach einer knappen halben Sekunde
-einen kleinen Puffer, damit die Wartezeit nicht wie ein Hänger aussieht.
-Spätestens nach 2,6 Sekunden geht es ohnehin weiter.
-
-Sind die Windows-Animationseffekte abgeschaltet (*Einstellungen → Barrierefreiheit
-→ Visuelle Effekte*), entfällt nur die Fahrt in die neue Größe – der Deckel
-bleibt, der Umbau ist also weiterhin nicht zu sehen.
+</details>
 
 ## Grenzen
 
-- **Ohne Login** zeigt Whatnot in jeder Kachel ein Anmelde-Fenster über dem Stream.
-  Einmal über das Anmelde-Symbol oben anmelden, dann ist es weg.
-- **20 gleichzeitige Streams sind viel Last** (jede Kachel ist ein eigener
-  Browser-Prozess mit laufendem Video). Bei ruckelnden Bildern: Streamer
-  verstecken – versteckte Kacheln laufen gar nicht erst mit.
-- **Bis zu zwei Minuten Verzögerung**: geht ein Streamer live, erscheint die
-  Kachel erst bei der nächsten Prüfung. Der Sendeturm oben rechts holt sie sofort.
-- Ändert Whatnot Seitenaufbau und Datenformat gleichzeitig, fällt die
-  Live-Erkennung aus. In der Shows-Liste steht dann *Prüfung fehlgeschlagen*
-  mit dem Grund.
+- **Ohne Anmeldung** legt Whatnot in jeder Kachel ein Anmeldefenster über den Stream.
+- **20 Streams sind viel Last** – jede Kachel ist ein eigener Browser-Prozess mit laufendem
+  Video. Bei Rucklern: Streamer verstecken, die laufen dann gar nicht erst mit.
+- **Bis zu zwei Minuten Verzögerung**, bis eine neu gestartete Show auftaucht. Der
+  Sendeturm oben holt sie sofort.
+- Ändert Whatnot Seitenaufbau und Datenformat zugleich, fällt die Live-Erkennung aus. In der
+  Shows-Liste steht dann *Prüfung fehlgeschlagen* mit dem Grund.
+
+## Lizenz
+
+[AGPL-3.0-or-later](LICENSE). Kein offizielles Whatnot-Produkt und nicht mit Whatnot
+verbunden – „Whatnot" gehört Whatnot Inc.
+
+Die Bildschirmfotos zeigen öffentlich gesendete Shows zum Zeitpunkt der Aufnahme.
