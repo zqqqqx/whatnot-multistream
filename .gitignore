@@ -5,6 +5,7 @@ dist/
 # aus build/icon.svg erzeugt (npm run icon)
 build/icon.png
 build/icon.ico
+build/icons/
 
 # Arbeitsreste
 *.log

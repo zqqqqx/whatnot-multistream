@@ -6,10 +6,13 @@
   "scripts": {
     "start": "electron .",
     "icon": "node tools/make-icon.js",
-    "dist": "npm run icon && electron-builder --win"
+    "dist": "npm run icon && electron-builder --win",
+    "dist:linux": "npm run icon && electron-builder --linux"
   },
   "author": "zqqqqx",
   "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/zqqqqx/whatnot-multistream",
+  "desktopName": "whatnot-multistream.desktop",
   "devDependencies": {
     "electron": "^44.2.0",
     "electron-builder": "^26.15.3",
@@ -64,6 +67,26 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "icon": "build/icons",
+      "category": "Network",
+      "executableName": "whatnot-multistream",
+      "maintainer": "zqqqqx <217876273+zqqqqx@users.noreply.github.com>",
+      "synopsis": "Bis zu 20 Whatnot-Streams gleichzeitig in einem Fenster",
+      "artifactName": "Whatnot-Multistream-${version}-${arch}.${ext}",
+      "syncDesktopName": true
+    },
+    "deb": {
+      "packageName": "whatnot-multistream"
+    },
+    "rpm": {
+      "packageName": "whatnot-multistream"
     },
     "extraMetadata": {
       "name": "whatnot-multistream"

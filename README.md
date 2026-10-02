@@ -8,7 +8,7 @@
 
 Du trägst *Streamer* ein, keine Streams. Die App schaut nach, wer davon gerade live ist, und holt die laufende Show von selbst ins Raster. Ist die Show vorbei, ist die Kachel weg.
 
-[![Version](https://img.shields.io/github/v/release/zqqqqx/whatnot-multistream?style=flat-square&color=ffd400&labelColor=0d1117&label=Version)](https://github.com/zqqqqx/whatnot-multistream/releases/latest) [![Downloads](https://img.shields.io/github/downloads/zqqqqx/whatnot-multistream/total?style=flat-square&color=ffd400&labelColor=0d1117&label=Downloads)](https://github.com/zqqqqx/whatnot-multistream/releases) ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-ffd400?style=flat-square&labelColor=0d1117) [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-ffd400?style=flat-square&labelColor=0d1117)](LICENSE)
+[![Version](https://img.shields.io/github/v/release/zqqqqx/whatnot-multistream?style=flat-square&color=ffd400&labelColor=0d1117&label=Version)](https://github.com/zqqqqx/whatnot-multistream/releases/latest) [![Downloads](https://img.shields.io/github/downloads/zqqqqx/whatnot-multistream/total?style=flat-square&color=ffd400&labelColor=0d1117&label=Downloads)](https://github.com/zqqqqx/whatnot-multistream/releases) ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-ffd400?style=flat-square&labelColor=0d1117) ![Linux](https://img.shields.io/badge/Linux-AppImage%20%2F%20deb%20%2F%20rpm-ffd400?style=flat-square&labelColor=0d1117) [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-ffd400?style=flat-square&labelColor=0d1117)](LICENSE)
 
 <img src="docs/bilder/raster.jpg" alt="Zehn laufende Whatnot-Shows nebeneinander im Raster">
 
@@ -26,9 +26,30 @@ Du trägst *Streamer* ein, keine Streams. Die App schaut nach, wer davon gerade 
 
 ## Installieren
 
+### Windows
+
 1. Unter [**Releases**](https://github.com/zqqqqx/whatnot-multistream/releases/latest) die Datei `Whatnot-Multistream-Setup-x.y.z.exe` laden.
 2. Doppelklick. Es braucht **keine Administratorrechte**.
 3. Windows warnt beim ersten Start (die Datei ist nicht signiert): *Weitere Informationen* → *Trotzdem ausführen*.
+
+### Linux
+
+Unter [**Releases**](https://github.com/zqqqqx/whatnot-multistream/releases/latest) die passende Datei laden:
+
+| Datei | Für |
+| --- | --- |
+| `Whatnot-Multistream-x.y.z-amd64.deb` | Debian, Ubuntu, Linux Mint, Pop!_OS |
+| `Whatnot-Multistream-x.y.z-x86_64.rpm` | Fedora, RHEL, Rocky, Alma |
+| `Whatnot-Multistream-x.y.z-x86_64.AppImage` | jede andere Distribution (Arch, Manjaro, openSUSE, …) – ohne Installation |
+
+```bash
+sudo apt install ./Whatnot-Multistream-*-amd64.deb       # Debian / Ubuntu
+sudo dnf install ./Whatnot-Multistream-*-x86_64.rpm      # Fedora
+chmod +x Whatnot-Multistream-*.AppImage && ./Whatnot-Multistream-*.AppImage   # alle anderen
+```
+
+Die App steht danach im Startmenü. Das AppImage braucht `libfuse2`
+(Ubuntu ab 24.04: `sudo apt install libfuse2t64`).
 
 Updates meldet die App selbst – oben erscheint ein gelber Knopf. Geladen wird erst auf Klick.
 
@@ -284,8 +305,13 @@ fremden Server. Die App spricht mit genau zwei Gegenstellen: whatnot.com und Git
 
 ```bash
 npm start          # aus dem Quelltext starten
-npm run dist       # Installer nach dist/ bauen
+npm run dist       # Windows-Installer nach dist/ bauen
+npm run dist:linux # AppImage, .deb und .rpm nach dist/ bauen (auf Linux)
 ```
+
+Für das `.rpm` braucht es `rpmbuild` (Debian/Ubuntu: `sudo apt install rpm`).
+Das Windows-Setup lässt sich nur unter Windows (oder mit Wine) bauen, die
+Linux-Pakete nur unter Linux.
 
 Die installierte Fassung und `npm start` teilen sich denselben Datenordner – die
 Streamerliste ist in beiden dieselbe.
@@ -293,6 +319,11 @@ Streamerliste ist in beiden dieselbe.
 Für eine neue Fassung: Version in der `package.json` erhöhen, bauen, und **alle drei
 Dateien** aus `dist/` (Installer, `latest.yml`, `.blockmap`) an ein GitHub-Release mit dem
 Tag `v<version>` hängen. Genau danach sucht die Selbstaktualisierung.
+
+Für Linux kommen ans selbe Release noch das AppImage, das `.deb`, das `.rpm` und die
+`latest-linux.yml`. Alle drei aktualisieren sich darüber selbst; bei `.deb` und `.rpm`
+fragt das System beim Einspielen nach dem Passwort. Wichtig: alle Linux-Pakete in
+**einem** Durchgang bauen, sonst fehlt in der `latest-linux.yml` ein Eintrag.
 
 </details>
 
